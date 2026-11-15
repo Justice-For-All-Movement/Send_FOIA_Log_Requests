@@ -4,7 +4,7 @@ Start with the [comprehensive development plan](docs/DEVELOPMENT_PLAN.md), then 
 
 The scope is official agency/component discovery, annual FOIA log request generation, a bounded dry run, controlled dispatch, deduplication, submission/fulfillment tracking and yearly continuation.
 
-The specification is complete as a current engineering reconstruction. Original detailed campaign settings were not recovered. SFL-01–07 and SFL-09 are implemented offline (SFL-08 partially, fake transport only); live dispatch is disabled. The documentation and code do not authorize messages, fees or a future schedule. Large campaigns depend on the FOIA Aggregator corpus review and exact dispatch authorization described in the plan.
+The specification is complete as a current engineering reconstruction. Original detailed campaign settings were not recovered. SFL-01–07 and SFL-09–11 are implemented offline; SFL-08, 12 and 13 partially (fake transport only, no hosting); live dispatch is disabled. The documentation and code do not authorize messages, fees or a future schedule. Large campaigns depend on the FOIA Aggregator corpus review and exact dispatch authorization described in the plan.
 
 Validate the plan/registry and offline product suite using Python 3.11+ from this directory:
 
