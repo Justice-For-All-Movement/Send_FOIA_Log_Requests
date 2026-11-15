@@ -1,0 +1,21 @@
+{
+  "contract": "foia-aggregator-export",
+  "contract_version": "fc13-consumer-draft-1",
+  "dataset": "log_coverage",
+  "fc14_review": {
+    "reference": null,
+    "status": "absent"
+  },
+  "fixture_mode": true,
+  "observed_at": "2026-11-15T00:00:00Z",
+  "producer": {
+    "commit": "synthetic",
+    "name": "synthetic-fixture"
+  },
+  "records": {
+    "count": 9,
+    "path": "coverage.jsonl",
+    "sha256": "75d09db69baba99d16b6ac6760f3438f653f717b2edb49ee36162b32310b5391"
+  },
+  "snapshot_id": "synthetic-log-coverage-v1"
+}
