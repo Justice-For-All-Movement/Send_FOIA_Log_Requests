@@ -408,7 +408,30 @@ def _v9(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9}
+# SFL-12 interchange bundles and downstream acknowledgments.
+_V10_STATEMENTS = (
+    """CREATE TABLE interchange_exports (
+        bundle_sha256 TEXT PRIMARY KEY,
+        schema_version TEXT NOT NULL,
+        generated_at TEXT NOT NULL,
+        counts_json TEXT NOT NULL,
+        recorded_at TEXT NOT NULL)""",
+    """CREATE TABLE interchange_acks (
+        ack_id TEXT PRIMARY KEY,
+        bundle_sha256 TEXT NOT NULL REFERENCES interchange_exports(bundle_sha256),
+        consumer TEXT NOT NULL,
+        status TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        received_at TEXT NOT NULL)""",
+)
+
+
+def _v10(conn):
+    for statement in _V10_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -422,6 +445,7 @@ EXPECTED_TABLES = {
     7: {"provider_events", "acknowledgments"},
     8: {"responses", "response_attachments", "response_coverage", "referrals", "followup_tasks"},
     9: {"continuation_cycles", "continuation_items", "continuation_schedules"},
+    10: {"interchange_exports", "interchange_acks"},
 }
 
 
