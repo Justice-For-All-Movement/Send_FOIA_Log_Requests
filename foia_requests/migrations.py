@@ -373,7 +373,42 @@ def _v8(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8}
+# SFL-11 restart-safe yearly continuation.
+_V9_STATEMENTS = (
+    """CREATE TABLE continuation_cycles (
+        cycle_id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        period_start TEXT NOT NULL,
+        period_end TEXT NOT NULL,
+        period_basis TEXT NOT NULL,
+        prior_cycle_id TEXT,
+        status TEXT NOT NULL CHECK (status IN ('preparing', 'prepared')),
+        created_at TEXT NOT NULL,
+        UNIQUE (campaign_id, period_start, period_end))""",
+    """CREATE TABLE continuation_items (
+        cycle_id TEXT NOT NULL REFERENCES continuation_cycles(cycle_id),
+        component_id TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        request_id TEXT,
+        detail_json TEXT NOT NULL,
+        PRIMARY KEY (cycle_id, component_id))""",
+    """CREATE TABLE continuation_schedules (
+        campaign_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        timezone TEXT NOT NULL,
+        basis TEXT NOT NULL,
+        expires_at TEXT,
+        set_by TEXT NOT NULL,
+        set_at TEXT NOT NULL)""",
+)
+
+
+def _v9(conn):
+    for statement in _V9_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -386,6 +421,7 @@ EXPECTED_TABLES = {
     6: {"dispatch_log", "receipts"},
     7: {"provider_events", "acknowledgments"},
     8: {"responses", "response_attachments", "response_coverage", "referrals", "followup_tasks"},
+    9: {"continuation_cycles", "continuation_items", "continuation_schedules"},
 }
 
 
