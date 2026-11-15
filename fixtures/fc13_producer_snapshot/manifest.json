@@ -1,0 +1,39 @@
+{
+  "counts": {
+    "agencies": 1,
+    "archived": 1,
+    "metadata_only": 2,
+    "records": 3,
+    "sources": 2,
+    "text_indexed": 1
+  },
+  "excluded_fields": [
+    "storage_key",
+    "local_path",
+    "storage_backend",
+    "download_error",
+    "requester_name"
+  ],
+  "files": [
+    {
+      "path": "records-00001.jsonl",
+      "records": 2,
+      "sha256": "29d7a6886c4be5aead81a764a64f5ef0f4bb227f2af0e64c083f5dc759b35792"
+    },
+    {
+      "path": "records-00002.jsonl",
+      "records": 1,
+      "sha256": "ccfbf662bd2e7aa9abdb893c48683f4477b0a3894b0e78ce3b6108976f8bc380"
+    }
+  ],
+  "generated_at": "2026-11-15T00:00:00+00:00",
+  "license": "Records are U.S. federal government releases obtained from public sources; catalog metadata is provided as-is. Check each record's source for any third-party rights. Remote-only records are pointers, not preserved copies.",
+  "pagination": {
+    "default_page_size": 100,
+    "max_page_size": 500,
+    "order": "stable within a snapshot; cursors expire when the snapshot changes"
+  },
+  "schema": "/api/v1/export/schema",
+  "schema_version": "foia-catalog-export/1",
+  "snapshot_id": "snap_936bc978fe5fc655b664"
+}

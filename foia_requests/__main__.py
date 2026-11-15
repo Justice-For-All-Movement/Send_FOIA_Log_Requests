@@ -39,7 +39,11 @@ def build_parser():
     for name in COMMANDS:
         command = sub.add_parser(name)
         if name == "directory":
-            command.add_argument("--source", required=True, help="Directory fixture folder (source.json + pages)")
+            group = command.add_mutually_exclusive_group(required=True)
+            group.add_argument("--source", help="Directory fixture folder (source.json + pages)")
+            group.add_argument("--catalog", help="FC-13 export-catalog snapshot folder (agency/office census)")
+            command.add_argument("--live-catalog", action="store_true",
+                                 help="Expect a live (non-fixture) FC-13 snapshot")
             command.add_argument("--ledger", required=True, help="Private ledger database path")
         elif name == "draft":
             command.add_argument("--ledger", required=True)
@@ -92,6 +96,13 @@ def _run(args, cfg):
     from .ledger import Ledger
     from . import directory
     with Ledger(args.ledger) as ledger:
+        if args.command == "directory" and args.catalog:
+            from .aggregator_contract import load_catalog_snapshot
+            snapshot = load_catalog_snapshot(args.catalog, expected_fixture=not args.live_catalog)
+            summary = directory.import_catalog_census(ledger, snapshot)
+            return {"command": "directory", "source": "fc13-catalog", "snapshot_id": snapshot.snapshot_id,
+                    "created": len(summary["created"]), "matched": len(summary["matched"]),
+                    "actions": summary["actions"], "stored": summary["stored"]}
         if args.command == "directory":
             result = directory.discover(directory.load_source(args.source), directory.fixture_fetcher(args.source))
             stored = directory.persist(ledger, result)

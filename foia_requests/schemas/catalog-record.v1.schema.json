@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Justice-For-All-Movement/FOIA_Aggregator/schemas/catalog-record.v1.schema.json",
+  "title": "FOIA Aggregator catalog record (foia-catalog-export/1)",
+  "description": "One released-record entry in a versioned catalog export. Fields come from the archive database as stored; nothing is synthetically enriched. Remote-only records are pointers, not preserved copies. Additive fields require a new minor documentation note; removing or changing a field requires foia-catalog-export/2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "url", "title", "description", "filename", "file_type", "mime_type",
+               "published_date", "published_year", "discovered_at", "agency", "office", "sources",
+               "preservation", "text"],
+  "properties": {
+    "record_id": {"type": "string", "pattern": "^rec_[0-9a-f]{24}$",
+                  "description": "Stable ID: SHA-256 of the normalized document URL. Survives database rebuilds."},
+    "url": {"type": "string", "description": "Canonical public URL of the released record."},
+    "title": {"type": ["string", "null"]},
+    "description": {"type": ["string", "null"]},
+    "filename": {"type": ["string", "null"]},
+    "file_type": {"type": ["string", "null"]},
+    "mime_type": {"type": ["string", "null"]},
+    "published_date": {"type": ["string", "null"], "description": "As published by the source; not inferred."},
+    "published_year": {"type": ["integer", "null"]},
+    "discovered_at": {"type": ["string", "null"]},
+    "agency": {"type": ["object", "null"], "additionalProperties": false, "required": ["slug", "name"],
+               "properties": {"slug": {"type": "string"}, "name": {"type": ["string", "null"]}}},
+    "office": {"type": ["object", "null"], "additionalProperties": false, "required": ["slug", "name"],
+               "properties": {"slug": {"type": "string"}, "name": {"type": ["string", "null"]}}},
+    "sources": {
+      "type": "array",
+      "description": "Every source the record was found at (FC-01 source IDs).",
+      "items": {"type": "object", "additionalProperties": false, "required": ["source_id", "url", "provenance"],
+                "properties": {"source_id": {"type": "string", "pattern": "^src_[0-9a-f]{16}$"},
+                               "url": {"type": "string"},
+                               "provenance": {"type": "string", "enum": ["official", "third_party"]}}}
+    },
+    "preservation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "acquisition_status", "sha256", "file_size", "archived_at"],
+      "properties": {
+        "status": {"type": "string", "enum": ["archived", "metadata_only"]},
+        "acquisition_status": {"type": "string"},
+        "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "file_size": {"type": ["integer", "null"]},
+        "archived_at": {"type": ["string", "null"]}
+      }
+    },
+    "text": {
+      "type": "object", "additionalProperties": false,
+      "required": ["indexed", "extraction_status", "extraction_method", "character_count", "truncated"],
+      "properties": {
+        "indexed": {"type": "boolean"},
+        "extraction_status": {"type": ["string", "null"]},
+        "extraction_method": {"type": ["string", "null"]},
+        "character_count": {"type": ["integer", "null"]},
+        "truncated": {"type": ["boolean", "null"]}
+      }
+    }
+  }
+}
