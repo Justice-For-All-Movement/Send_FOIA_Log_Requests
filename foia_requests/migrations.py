@@ -322,7 +322,58 @@ def _v7(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7}
+# SFL-10 response intake and fulfillment accounting.
+_V8_STATEMENTS = (
+    """CREATE TABLE responses (
+        response_id TEXT PRIMARY KEY,
+        request_id TEXT REFERENCES requests(request_id),
+        tracking_number TEXT,
+        kind TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        correlation TEXT NOT NULL,
+        evidence_sha256 TEXT NOT NULL,
+        recorded_by TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        detail_json TEXT NOT NULL)""",
+    """CREATE TABLE response_attachments (
+        response_id TEXT NOT NULL REFERENCES responses(response_id),
+        sha256 TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        media_type TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('accepted', 'quarantined')),
+        reason TEXT NOT NULL,
+        PRIMARY KEY (response_id, sha256))""",
+    """CREATE TABLE response_coverage (
+        response_id TEXT NOT NULL REFERENCES responses(response_id),
+        period_start TEXT NOT NULL,
+        period_end TEXT NOT NULL,
+        fields_json TEXT NOT NULL,
+        PRIMARY KEY (response_id, period_start, period_end))""",
+    """CREATE TABLE referrals (
+        response_id TEXT NOT NULL REFERENCES responses(response_id),
+        request_id TEXT NOT NULL REFERENCES requests(request_id),
+        to_component_id TEXT NOT NULL,
+        PRIMARY KEY (response_id, to_component_id))""",
+    """CREATE TABLE followup_tasks (
+        task_id TEXT PRIMARY KEY,
+        request_id TEXT,
+        response_id TEXT,
+        kind TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at TEXT NOT NULL)""",
+    "CREATE TRIGGER responses_immutable BEFORE UPDATE ON responses BEGIN SELECT RAISE(ABORT, 'responses are immutable'); END",
+    "CREATE TRIGGER responses_no_delete BEFORE DELETE ON responses BEGIN SELECT RAISE(ABORT, 'responses are immutable'); END",
+)
+
+
+def _v8(conn):
+    for statement in _V8_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -334,6 +385,7 @@ EXPECTED_TABLES = {
     5: {"operators", "authorizations", "authorization_items", "outbox", "dispatch_control"},
     6: {"dispatch_log", "receipts"},
     7: {"provider_events", "acknowledgments"},
+    8: {"responses", "response_attachments", "response_coverage", "referrals", "followup_tasks"},
 }
 
 
