@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "repository": "neophilism/Send_FOIA_Log_Requests",
+  "repository": "Justice-For-All-Movement/Send_FOIA_Log_Requests",
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 14,
@@ -16,7 +16,7 @@
     "planVerifiedMeaning": "Current enumerated plan and registry consistency only; not transcript fidelity, implementation acceptance, live operation or approval of historical claims",
     "priorEvidenceMeaning": "Historical PRs are preserved as related evidence; they are not completion mappings for newly scoped remediation acceptance",
     "upstreamPlan": {
-      "repository": "neophilism/FOIA_Aggregator",
+      "repository": "Justice-For-All-Movement/FOIA_Aggregator",
       "commit": "62fe82950963dcc0dde2003f094047d65bf79a9d",
       "path": "docs/DEVELOPMENT_PLAN.md",
       "requiredEvidence": "FC-13/FC-14 actual versioned corpus export and coverage review; completion not verified"

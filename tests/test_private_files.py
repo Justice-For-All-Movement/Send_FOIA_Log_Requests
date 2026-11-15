@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from foia_requests.config import Config, ConfigurationError
-from foia_requests.migrations import initialize
+from foia_requests.migrations import SCHEMA_VERSION, initialize
 
 
 class PrivateFileTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class PrivateFileTests(unittest.TestCase):
             self.assertEqual(path.parent.parent.stat().st_mode & 0o777, 0o700)
             initialize(path)
             with sqlite3.connect(path) as conn:
-                self.assertEqual(conn.execute("SELECT COUNT(*) FROM schema_events").fetchone()[0], 1)
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM schema_events").fetchone()[0], SCHEMA_VERSION)
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support required")
     def test_linked_database_and_config_rejected_without_touching_target(self):
@@ -105,7 +105,7 @@ class PrivateFileTests(unittest.TestCase):
     def test_concurrent_initializers_share_one_migration_event(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'nested' / 'ledger.sqlite'
-            code = 'from foia_requests.migrations import initialize; import sys; initialize(sys.argv[1])'
+            code = 'from foia_requests.migrations import SCHEMA_VERSION, initialize; import sys; initialize(sys.argv[1])'
             children = [subprocess.Popen([sys.executable, '-c', code, str(path)],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         for _ in range(4)]
@@ -113,7 +113,7 @@ class PrivateFileTests(unittest.TestCase):
                 _, stderr = child.communicate(timeout=5)
                 self.assertEqual(child.returncode, 0, stderr)
             with sqlite3.connect(path) as conn:
-                self.assertEqual(conn.execute('SELECT COUNT(*) FROM schema_events').fetchone()[0], 1)
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM schema_events').fetchone()[0], SCHEMA_VERSION)
 
 
 if __name__ == '__main__':

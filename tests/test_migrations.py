@@ -2,7 +2,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from foia_requests.migrations import initialize
+from foia_requests.migrations import SCHEMA_VERSION, initialize
 
 class MigrationTests(unittest.TestCase):
     def test_idempotent(self):
@@ -11,8 +11,9 @@ class MigrationTests(unittest.TestCase):
             initialize(path)
             initialize(path)
             with sqlite3.connect(path) as conn:
-                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 1)
-                self.assertEqual(conn.execute("SELECT COUNT(*) FROM schema_events").fetchone()[0], 1)
+                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+                self.assertEqual([r[0] for r in conn.execute("SELECT version FROM schema_events ORDER BY version")],
+                                 list(range(1, SCHEMA_VERSION + 1)))
 
     def test_no_downgrade(self):
         with tempfile.TemporaryDirectory() as folder:

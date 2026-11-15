@@ -24,7 +24,7 @@ def main():
     plan = (root / 'docs/DEVELOPMENT_PLAN.md').read_text()
     require((root / 'docs/HANDOFF_STATUS.md').is_file(), 'Missing handoff entry point')
     require(doc['schemaVersion'] == 1, 'Unsupported registry schema')
-    require(doc['repository'] in ('neophilism/FOIA_Bias_Analysis', 'neophilism/Send_FOIA_Log_Requests'), 'Wrong repository identity')
+    require(doc['repository'] in ('Justice-For-All-Movement/FOIA_Bias_Analysis', 'Justice-For-All-Movement/Send_FOIA_Log_Requests'), 'Wrong repository identity')
     prefix = 'FBA' if doc['repository'].endswith('/FOIA_Bias_Analysis') else 'SFL'
     requirement_prefix = 'BR' if prefix == 'FBA' else 'SR'
     require(type(doc['roadmapVersion']) is int and doc['roadmapVersion'] > 0, 'Invalid roadmap version')
