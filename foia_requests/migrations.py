@@ -259,7 +259,41 @@ def _v5(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5}
+# SFL-08 dispatch attempt log and provider receipts.
+_V6_STATEMENTS = (
+    """CREATE TABLE dispatch_log (
+        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id TEXT NOT NULL REFERENCES outbox(attempt_id),
+        request_id TEXT NOT NULL,
+        destination_host TEXT NOT NULL,
+        at TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        provider_message_id TEXT,
+        retry_after INTEGER,
+        error_class TEXT)""",
+    "CREATE INDEX dispatch_log_rate ON dispatch_log(destination_host, at)",
+    """CREATE TABLE receipts (
+        receipt_id TEXT PRIMARY KEY,
+        attempt_id TEXT NOT NULL REFERENCES outbox(attempt_id),
+        request_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        provider_message_id TEXT,
+        receipt_json TEXT NOT NULL,
+        receipt_sha256 TEXT NOT NULL,
+        recorded_at TEXT NOT NULL)""",
+    "CREATE TRIGGER dispatch_log_append_only BEFORE UPDATE ON dispatch_log BEGIN SELECT RAISE(ABORT, 'append-only'); END",
+    "CREATE TRIGGER dispatch_log_no_delete BEFORE DELETE ON dispatch_log BEGIN SELECT RAISE(ABORT, 'append-only'); END",
+    "CREATE TRIGGER receipts_immutable BEFORE UPDATE ON receipts BEGIN SELECT RAISE(ABORT, 'receipts are immutable'); END",
+    "CREATE TRIGGER receipts_no_delete BEFORE DELETE ON receipts BEGIN SELECT RAISE(ABORT, 'receipts are immutable'); END",
+)
+
+
+def _v6(conn):
+    for statement in _V6_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -269,6 +303,7 @@ EXPECTED_TABLES = {
     3: {"directory_snapshots", "components", "contact_routes"},
     4: {"dry_runs", "dry_run_items"},
     5: {"operators", "authorizations", "authorization_items", "outbox", "dispatch_control"},
+    6: {"dispatch_log", "receipts"},
 }
 
 
