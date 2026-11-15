@@ -1,6 +1,6 @@
 {
   "contract": "foia-aggregator-export",
-  "contract_version": "fc13-consumer-draft-1",
+  "contract_version": "sfl-log-coverage-proposal-1",
   "dataset": "log_coverage",
   "fc14_review": {
     "reference": null,

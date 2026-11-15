@@ -345,3 +345,47 @@ def routes_for(ledger, cid, include_superseded=False):
         item["redirects"] = json.loads(item.pop("redirects_json"))
         out.append(item)
     return out
+
+
+def import_catalog_census(ledger, snapshot, jurisdiction="fed"):
+    """SFL-02: import the FC-13 catalog agency/office census as component candidates.
+
+    FC-13/1 carries no contact data, so new components get status ``unknown``
+    and no routes; an ``verify_contact_routes`` action is queued for each. An
+    existing directory component is never downgraded; a differing office name
+    is kept as an alias. Idempotent per manifest SHA-256.
+    """
+    now = ledger.clock()
+    created, matched, actions = [], [], []
+    with ledger.transaction() as conn:
+        if conn.execute("SELECT 1 FROM directory_snapshots WHERE snapshot_sha256=?",
+                        (snapshot.manifest_sha256,)).fetchone():
+            return {"stored": False, "created": [], "matched": [], "actions": []}
+        source_id = f"fc13-catalog:{snapshot.snapshot_id}"
+        for entry in snapshot.census():
+            if not entry["office_slug"]:
+                actions.append({"agency": entry["agency_slug"], "action": "manual_review",
+                                "reason": "catalog records without an office cannot map to a component"})
+                continue
+            cid = component_id(jurisdiction, entry["agency_slug"], entry["office_slug"])
+            name = entry["office_name"] or entry["office_slug"]
+            row = conn.execute("SELECT name, aliases_json FROM components WHERE component_id=?", (cid,)).fetchone()
+            if row is None:
+                conn.execute("INSERT INTO components VALUES (?,?,?,?,?,?,?,?,?)",
+                             (cid, f"{jurisdiction}:{slug(entry['agency_slug'])}",
+                              entry["agency_name"] or entry["agency_slug"], name, "unknown", canonical_json([]),
+                              source_id, snapshot.manifest_sha256, snapshot.manifest_sha256))
+                created.append(cid)
+                actions.append({"component_id": cid, "action": "verify_contact_routes",
+                                "reason": "census-only component; FC-13 has no contact routes"})
+            else:
+                aliases = set(json.loads(row["aliases_json"]))
+                if name != row["name"] and name not in aliases:
+                    aliases.add(name)
+                    conn.execute("UPDATE components SET aliases_json=? WHERE component_id=?",
+                                 (canonical_json(sorted(aliases)), cid))
+                matched.append(cid)
+        conn.execute("INSERT INTO directory_snapshots VALUES (?,?,?,?,?,?,?)",
+                     (snapshot.manifest_sha256, source_id, snapshot.generated_at, 0, 0,
+                      canonical_json(actions), now))
+    return {"stored": True, "created": created, "matched": matched, "actions": actions}

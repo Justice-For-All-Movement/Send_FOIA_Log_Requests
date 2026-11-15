@@ -10,4 +10,4 @@ foia-requests = "foia_requests.__main__:main"
 [tool.setuptools.packages.find]
 include = ["foia_requests*"]
 [tool.setuptools.package-data]
-foia_requests = ["templates/*.json"]
+foia_requests = ["templates/*.json", "schemas/*.json"]
