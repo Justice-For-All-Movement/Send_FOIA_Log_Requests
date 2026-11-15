@@ -4,7 +4,7 @@
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 14,
-  "observedAt": "2026-11-15T18:57:42Z",
+  "observedAt": "2026-11-15T19:20:35Z",
   "planProvenance": {
     "baselineDate": "2026-10-11",
     "authority": "Current owner instruction to complete plans and registry integration; Engine-Room issue 71 recovered scope; repository evidence distinguished in plan",
@@ -45,7 +45,8 @@
       "title": "Official agency/component and contact discovery",
       "origin": "addition",
       "prs": [
-        9
+        9,
+        16
       ],
       "scopeBasis": "2026-10-11 engineering reconstruction of documented inherited scope and completion gaps; not original approved milestone titles",
       "requirementIds": [
@@ -82,7 +83,10 @@
       ],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-03"
+      "planSection": "SFL-03",
+      "contributingPrs": [
+        16
+      ]
     },
     {
       "id": "SFL-04",
@@ -213,7 +217,9 @@
       "id": "SFL-10",
       "title": "Response intake and fulfillment accounting",
       "origin": "addition",
-      "prs": [],
+      "prs": [
+        17
+      ],
       "scopeBasis": "2026-10-11 engineering reconstruction of documented inherited scope and completion gaps; not original approved milestone titles",
       "requirementIds": [
         "SR-06",
@@ -231,7 +237,9 @@
       "id": "SFL-11",
       "title": "Restart and yearly continuation",
       "origin": "addition",
-      "prs": [],
+      "prs": [
+        18
+      ],
       "scopeBasis": "2026-10-11 engineering reconstruction of documented inherited scope and completion gaps; not original approved milestone titles",
       "requirementIds": [
         "SR-07"
@@ -266,7 +274,10 @@
       ],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-12"
+      "planSection": "SFL-12",
+      "contributingPrs": [
+        19
+      ]
     },
     {
       "id": "SFL-13",
@@ -289,7 +300,10 @@
       ],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-13"
+      "planSection": "SFL-13",
+      "contributingPrs": [
+        20
+      ]
     },
     {
       "id": "SFL-14",
@@ -331,6 +345,96 @@
     }
   ],
   "pullRequests": [
+    {
+      "id": 5326239166,
+      "number": 20,
+      "title": "SFL-13: Verified backups, isolated restore checks and health reporting",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/20",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T19:19:22Z",
+      "updatedAt": "2026-11-15T19:20:33Z",
+      "closedAt": "2026-11-15T19:20:33Z",
+      "mergedAt": "2026-11-15T19:20:33Z",
+      "headSha": "a07845f33035cfe982c3744dcb1f225bcb8a4027",
+      "baseRef": "main",
+      "mergeCommitSha": "197e41d52759b53a055e72df6c480fca5ad504f5"
+    },
+    {
+      "id": 5326212804,
+      "number": 19,
+      "title": "SFL-12: Aggregator interchange bundles and completion reporting",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/19",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T19:16:49Z",
+      "updatedAt": "2026-11-15T19:18:19Z",
+      "closedAt": "2026-11-15T19:18:19Z",
+      "mergedAt": "2026-11-15T19:18:19Z",
+      "headSha": "303656d2815ac9c5d1bb6e6180c95dafaf1240b9",
+      "baseRef": "main",
+      "mergeCommitSha": "bd23385a018a8bea2496541ca9a10e93b9482402"
+    },
+    {
+      "id": 5326189163,
+      "number": 18,
+      "title": "SFL-11: Restart-safe yearly continuation",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/18",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T19:14:21Z",
+      "updatedAt": "2026-11-15T19:15:51Z",
+      "closedAt": "2026-11-15T19:15:51Z",
+      "mergedAt": "2026-11-15T19:15:51Z",
+      "headSha": "4ab8a370d084672f6ffa9d6d6b3c2130df2c7649",
+      "baseRef": "main",
+      "mergeCommitSha": "43282363cef3b9386f19770e4e92a54e52889ae8"
+    },
+    {
+      "id": 5326160218,
+      "number": 17,
+      "title": "SFL-10: Response intake and fulfillment accounting",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/17",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T19:11:34Z",
+      "updatedAt": "2026-11-15T19:13:05Z",
+      "closedAt": "2026-11-15T19:13:04Z",
+      "mergedAt": "2026-11-15T19:13:04Z",
+      "headSha": "35063f18a582f4c2911053102115d34c965ca4c6",
+      "baseRef": "main",
+      "mergeCommitSha": "35a1ff6580d996c75a41387a614f68144a664001"
+    },
+    {
+      "id": 5326134186,
+      "number": 16,
+      "title": "SFL-02/03: Align Aggregator contract to merged FC-13 (pinned ca822fa)",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/16",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T19:08:40Z",
+      "updatedAt": "2026-11-15T19:10:05Z",
+      "closedAt": "2026-11-15T19:10:05Z",
+      "mergedAt": "2026-11-15T19:10:05Z",
+      "headSha": "0481aca169f8a25515cda832c4ae98cf16249f12",
+      "baseRef": "main",
+      "mergeCommitSha": "854eb3bbf8fee49c8fcbb597e15dace070327324"
+    },
+    {
+      "id": 5326043567,
+      "number": 15,
+      "title": "Registry and handoff: map merged PRs #5-#14 to SFL units",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/15",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-15T18:58:19Z",
+      "updatedAt": "2026-11-15T18:58:51Z",
+      "closedAt": "2026-11-15T18:58:51Z",
+      "mergedAt": "2026-11-15T18:58:51Z",
+      "headSha": "2a6abdf8da1001e405e22bf939093da498526913",
+      "baseRef": "main",
+      "mergeCommitSha": "40f10efc1215e0816300d1bc6a2e4e115a222132"
+    },
     {
       "id": 5326031476,
       "number": 14,
