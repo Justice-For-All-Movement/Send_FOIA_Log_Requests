@@ -200,7 +200,66 @@ def _v4(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4}
+# SFL-07 exact-batch authorization, operator roles, outbox and emergency stop.
+_V5_STATEMENTS = (
+    """CREATE TABLE operators (
+        operator_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('reviewer', 'authorizer', 'dispatcher', 'safety')),
+        granted_by TEXT NOT NULL,
+        granted_at TEXT NOT NULL,
+        PRIMARY KEY (operator_id, role))""",
+    """CREATE TABLE authorizations (
+        auth_id TEXT PRIMARY KEY,
+        envelope_json TEXT NOT NULL,
+        envelope_sha256 TEXT NOT NULL UNIQUE,
+        authorizer TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        max_messages INTEGER NOT NULL CHECK (max_messages >= 1),
+        created_at TEXT NOT NULL,
+        revoked_at TEXT,
+        revoked_by TEXT,
+        revoked_reason TEXT)""",
+    """CREATE TABLE authorization_items (
+        auth_id TEXT NOT NULL REFERENCES authorizations(auth_id),
+        request_id TEXT NOT NULL REFERENCES requests(request_id),
+        content_sha256 TEXT NOT NULL,
+        route_id TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        PRIMARY KEY (auth_id, request_id))""",
+    """CREATE TABLE outbox (
+        attempt_id TEXT PRIMARY KEY,
+        auth_id TEXT NOT NULL REFERENCES authorizations(auth_id),
+        request_id TEXT NOT NULL REFERENCES requests(request_id),
+        content_sha256 TEXT NOT NULL,
+        route_id TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('queued', 'leased', 'submitting', 'submitted', 'failed',
+                                             'unknown', 'cancelled')),
+        lease_owner TEXT,
+        lease_expires TEXT,
+        not_before TEXT,
+        tries INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL)""",
+    "CREATE UNIQUE INDEX outbox_one_live_intent ON outbox(request_id) WHERE state IN "
+    "('queued', 'leased', 'submitting', 'submitted', 'unknown')",
+    """CREATE TABLE dispatch_control (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        set_at TEXT NOT NULL)""",
+    "CREATE TRIGGER authorizations_no_delete BEFORE DELETE ON authorizations BEGIN SELECT RAISE(ABORT, 'authorizations are retained'); END",
+    "CREATE TRIGGER outbox_no_delete BEFORE DELETE ON outbox BEGIN SELECT RAISE(ABORT, 'outbox evidence is retained'); END",
+)
+
+
+def _v5(conn):
+    for statement in _V5_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -209,6 +268,7 @@ EXPECTED_TABLES = {
         "request_flags", "request_links"},
     3: {"directory_snapshots", "components", "contact_routes"},
     4: {"dry_runs", "dry_run_items"},
+    5: {"operators", "authorizations", "authorization_items", "outbox", "dispatch_control"},
 }
 
 
