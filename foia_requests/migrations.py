@@ -134,13 +134,55 @@ def _v2(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2}
+# SFL-02 component directory and contact routes.
+_V3_STATEMENTS = (
+    """CREATE TABLE directory_snapshots (
+        snapshot_sha256 TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        complete INTEGER NOT NULL,
+        pages INTEGER NOT NULL,
+        actions_json TEXT NOT NULL,
+        recorded_at TEXT NOT NULL)""",
+    """CREATE TABLE components (
+        component_id TEXT PRIMARY KEY,
+        agency_id TEXT NOT NULL,
+        agency_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        aliases_json TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        first_seen_snapshot TEXT NOT NULL,
+        last_seen_snapshot TEXT NOT NULL)""",
+    """CREATE TABLE contact_routes (
+        route_id TEXT PRIMARY KEY,
+        component_id TEXT NOT NULL REFERENCES components(component_id),
+        kind TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        state TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        redirects_json TEXT NOT NULL,
+        verified_at TEXT,
+        first_seen_snapshot TEXT NOT NULL,
+        last_seen_snapshot TEXT NOT NULL,
+        superseded_at TEXT)""",
+)
+
+
+def _v3(conn):
+    for statement in _V3_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
     1: {"schema_events"},
     2: {"component_aliases", "requests", "request_revisions", "request_events",
         "request_flags", "request_links"},
+    3: {"directory_snapshots", "components", "contact_routes"},
 }
 
 

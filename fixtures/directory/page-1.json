@@ -1,0 +1,10 @@
+{"status": 200, "url": "https://directory.agency.gov.example/components?page=1", "next": "page-2.json", "items": [
+  {"agency_abbr": "DOJ", "agency_name": "Department of Justice", "component_abbr": "OIP", "component_name": "Office of Information Policy", "status": "current", "aliases": [], "routes": [
+    {"kind": "email", "destination": "foia-oip@doj.gov.example", "source_url": "https://directory.agency.gov.example/doj/oip"},
+    {"kind": "portal", "destination": "https://portal.agency.gov.example/doj/oip", "source_url": "https://directory.agency.gov.example/doj/oip", "redirects": ["https://portal.agency.gov.example/doj/oip/start"]}]},
+  {"agency_abbr": "DOJ", "agency_name": "Department of Justice", "component_abbr": "FOIA-UNIT", "component_name": "FOIA Unit", "status": "current", "aliases": [], "routes": [
+    {"kind": "email", "destination": "foia-unit@doj.gov.example", "source_url": "https://directory.agency.gov.example/doj/foia-unit"}]},
+  {"agency_abbr": "DHS", "agency_name": "Department of Homeland Security", "component_abbr": "FOIA-UNIT", "component_name": "FOIA Unit", "status": "current", "aliases": [], "routes": [
+    {"kind": "email", "destination": "dhs-foia@mail.example.com", "source_url": "https://directory.agency.gov.example/dhs/foia-unit"},
+    {"kind": "portal", "destination": "https://portal.agency.gov.example/dhs", "source_url": "https://directory.agency.gov.example/dhs/foia-unit", "redirects": ["https://tracking.example.net/dhs"]}]}
+]}

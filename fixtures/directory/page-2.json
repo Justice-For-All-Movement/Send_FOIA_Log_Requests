@@ -1,0 +1,12 @@
+{"status": 200, "url": "https://directory.agency.gov.example/components?page=2", "next": "page-3.json", "items": [
+  {"agency_abbr": "DOJ", "agency_name": "Department of Justice", "component_abbr": "OIP", "component_name": "Office of Information Policy", "status": "current", "aliases": ["OIP FOIA"], "routes": [
+    {"kind": "postal", "destination": "Synthetic postal address, Washington DC", "source_url": "https://directory.agency.gov.example/doj/oip"}]},
+  {"agency_abbr": "EPA", "agency_name": "Environmental Protection Agency", "component_abbr": "OLD-REGION", "component_name": "Former Regional Office", "status": "renamed", "renamed_to": "REGION-X", "aliases": [], "routes": []},
+  {"agency_abbr": "EPA", "agency_name": "Environmental Protection Agency", "component_abbr": "REGION-X", "component_name": "Region X FOIA Office", "status": "current", "aliases": ["Former Regional Office"], "routes": [
+    {"kind": "portal", "destination": "http://portal.agency.gov.example/epa/region-x", "source_url": "https://directory.agency.gov.example/epa/region-x"},
+    {"kind": "email", "destination": "not-an-email", "source_url": "https://directory.agency.gov.example/epa/region-x"}]},
+  {"agency_abbr": "DOE", "agency_name": "Department of Energy", "component_abbr": "LEGACY", "component_name": "Legacy Office", "status": "retired", "aliases": [], "routes": []},
+  {"agency_abbr": "DOT", "agency_name": "Department of Transportation", "component_abbr": "MYSTERY", "component_name": "Unlisted Office", "status": "unknown", "aliases": [], "routes": [
+    {"kind": "portal", "destination": "https://user:pw@portal.agency.gov.example/dot", "source_url": "https://directory.agency.gov.example/dot"},
+    {"kind": "portal", "destination": "https://192.0.2.10/dot", "source_url": "https://directory.agency.gov.example/dot"}]}
+]}
