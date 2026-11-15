@@ -175,7 +175,32 @@ def _v3(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3}
+# SFL-06 bounded dry runs.
+_V4_STATEMENTS = (
+    """CREATE TABLE dry_runs (
+        run_id TEXT PRIMARY KEY,
+        cap INTEGER NOT NULL CHECK (cap BETWEEN 1 AND 3),
+        created_at TEXT NOT NULL,
+        packet_sha256 TEXT,
+        status TEXT NOT NULL)""",
+    """CREATE TABLE dry_run_items (
+        run_id TEXT NOT NULL REFERENCES dry_runs(run_id),
+        ordinal INTEGER NOT NULL,
+        item_key TEXT NOT NULL,
+        PRIMARY KEY (run_id, item_key),
+        UNIQUE (run_id, ordinal))""",
+    "CREATE TRIGGER dry_run_item_cap BEFORE INSERT ON dry_run_items BEGIN "
+    "SELECT RAISE(ABORT, 'dry-run cap exceeded') WHERE (SELECT COUNT(*) FROM dry_run_items WHERE run_id=NEW.run_id) "
+    ">= (SELECT cap FROM dry_runs WHERE run_id=NEW.run_id); END",
+)
+
+
+def _v4(conn):
+    for statement in _V4_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -183,6 +208,7 @@ EXPECTED_TABLES = {
     2: {"component_aliases", "requests", "request_revisions", "request_events",
         "request_flags", "request_links"},
     3: {"directory_snapshots", "components", "contact_routes"},
+    4: {"dry_runs", "dry_run_items"},
 }
 
 

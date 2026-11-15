@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from foia_requests.config import Config, ConfigurationError
-from foia_requests.__main__ import COMMANDS, main
+from foia_requests.__main__ import COMMANDS, IMPLEMENTED, main
 
 class FoundationTests(unittest.TestCase):
     def test_defaults(self):
@@ -33,7 +33,13 @@ class FoundationTests(unittest.TestCase):
         for command in COMMANDS:
             with self.subTest(command=command):
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    self.assertEqual(main([command]), 2 if command == "dispatch" else 0)
+                    if command in IMPLEMENTED:
+                        # Implemented commands require explicit inputs.
+                        with self.assertRaises(SystemExit) as raised:
+                            main([command])
+                        self.assertEqual(raised.exception.code, 2)
+                    else:
+                        self.assertEqual(main([command]), 2 if command == "dispatch" else 0)
 
 if __name__ == "__main__":
     unittest.main()
