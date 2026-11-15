@@ -293,7 +293,36 @@ def _v6(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6}
+# SFL-09 provider events, reconciliation and agency acknowledgments.
+_V7_STATEMENTS = (
+    """CREATE TABLE provider_events (
+        event_id TEXT PRIMARY KEY,
+        provider_message_id TEXT NOT NULL,
+        attempt_id TEXT,
+        request_id TEXT,
+        event_type TEXT NOT NULL,
+        payload_sha256 TEXT NOT NULL,
+        matched INTEGER NOT NULL,
+        received_at TEXT NOT NULL)""",
+    """CREATE TABLE acknowledgments (
+        request_id TEXT NOT NULL REFERENCES requests(request_id),
+        tracking_number TEXT NOT NULL,
+        evidence_sha256 TEXT NOT NULL,
+        source TEXT NOT NULL,
+        recorded_by TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (request_id, tracking_number))""",
+    "CREATE TRIGGER provider_events_immutable BEFORE UPDATE ON provider_events BEGIN SELECT RAISE(ABORT, 'append-only'); END",
+    "CREATE TRIGGER acknowledgments_no_delete BEFORE DELETE ON acknowledgments BEGIN SELECT RAISE(ABORT, 'append-only'); END",
+)
+
+
+def _v7(conn):
+    for statement in _V7_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -304,6 +333,7 @@ EXPECTED_TABLES = {
     4: {"dry_runs", "dry_run_items"},
     5: {"operators", "authorizations", "authorization_items", "outbox", "dispatch_control"},
     6: {"dispatch_log", "receipts"},
+    7: {"provider_events", "acknowledgments"},
 }
 
 

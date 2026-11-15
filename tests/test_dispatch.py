@@ -23,26 +23,30 @@ class LiveFake(FakeSender):
     live = True
 
 
+def prepare(self):
+    """Shared fixture: three reviewed, authorized and queued fixture requests."""
+    self.folder = tempfile.TemporaryDirectory()
+    tmp = Path(self.folder.name)
+    self.ledger = Ledger(tmp / "state" / "ledger.sqlite", clock=lambda: NOW)
+    directory.persist(self.ledger, directory.discover(directory.load_source(ROOT / "fixtures/directory"),
+                                                      directory.fixture_fetcher(ROOT / "fixtures/directory")))
+    template, profile = approved_template(tmp), test_profile()
+    packet, folder = run_dry_run(self.ledger, Config(), selection=[
+        ("fed:doj/oip", calendar_year(y)) for y in (2020, 2021, 2022)],
+        export=load_export(ROOT / "fixtures/aggregator_export"), profile=profile, template=template,
+        output_dir=tmp / "packets", as_of=NOW)
+    record_review(self.ledger, folder / "packet.json", "reviewer", "ok")
+    for operator, role in (("auth", "authorizer"), ("disp", "dispatcher"), ("safety", "safety")):
+        grant_role(self.ledger, operator, role, "owner:test")
+    self.ids = [e["request_id"] for e in packet["entries"] if e["decision"] == "draft"]
+    self.auth_id, _ = authorize_batch(self.ledger, request_ids=self.ids, authorizer="auth", reference="TEST-1",
+                                      expires_at="2026-11-30T00:00:00Z", profile=profile, template=template,
+                                      transport="fake", max_messages=3, now=NOW)
+    queue_authorized(self.ledger, self.auth_id, "disp", now=NOW)
+
+
 class DispatchTests(unittest.TestCase):
-    def setUp(self):
-        self.folder = tempfile.TemporaryDirectory()
-        tmp = Path(self.folder.name)
-        self.ledger = Ledger(tmp / "state" / "ledger.sqlite", clock=lambda: NOW)
-        directory.persist(self.ledger, directory.discover(directory.load_source(ROOT / "fixtures/directory"),
-                                                          directory.fixture_fetcher(ROOT / "fixtures/directory")))
-        template, profile = approved_template(tmp), test_profile()
-        packet, folder = run_dry_run(self.ledger, Config(), selection=[
-            ("fed:doj/oip", calendar_year(y)) for y in (2020, 2021, 2022)],
-            export=load_export(ROOT / "fixtures/aggregator_export"), profile=profile, template=template,
-            output_dir=tmp / "packets", as_of=NOW)
-        record_review(self.ledger, folder / "packet.json", "reviewer", "ok")
-        for operator, role in (("auth", "authorizer"), ("disp", "dispatcher"), ("safety", "safety")):
-            grant_role(self.ledger, operator, role, "owner:test")
-        self.ids = [e["request_id"] for e in packet["entries"] if e["decision"] == "draft"]
-        self.auth_id, _ = authorize_batch(self.ledger, request_ids=self.ids, authorizer="auth", reference="TEST-1",
-                                          expires_at="2026-11-30T00:00:00Z", profile=profile, template=template,
-                                          transport="fake", max_messages=3, now=NOW)
-        queue_authorized(self.ledger, self.auth_id, "disp", now=NOW)
+    setUp = prepare
 
     def tearDown(self):
         self.ledger.close()
