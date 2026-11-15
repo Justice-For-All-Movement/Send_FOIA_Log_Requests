@@ -1,0 +1,17 @@
+FOIA request: Office of Information Policy FOIA request log, October 1, 2023 to September 30, 2024
+
+To the FOIA Officer, Office of Information Policy (Department of Justice):
+
+Under the Freedom of Information Act, 5 U.S.C. 552, I request a copy of the existing FOIA request log or logs maintained by Office of Information Policy covering FOIA requests received from October 1, 2023 through September 30, 2024.
+
+By "FOIA request log" I mean any existing list, spreadsheet, database extract or report that the component already maintains to track FOIA requests. I am not asking you to create new records, compile statistics, or provide the agency's annual FOIA report. If they are maintained and releasable, please include for each logged request: request tracking number; date received; date closed; the subject or description of the request as logged; final disposition; current processing status; fees assessed.
+
+This request does not seek the names, addresses or other contact details of individual requesters; you may omit those fields.
+
+Please provide the records electronically (CSV or spreadsheet preferred; PDF acceptable) if they are readily reproducible in that form.
+
+I am not agreeing to pay fees at this time. If fees are expected, please contact me with an estimate before incurring them.
+
+Synthetic Requester (TEST FIXTURE - NOT A REAL PERSON)
+Example Test Organization
+requester@example.invalid
