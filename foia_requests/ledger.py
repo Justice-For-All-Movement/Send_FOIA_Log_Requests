@@ -27,6 +27,7 @@ from pathlib import Path
 from . import migrations
 
 DEDUPE_KEY_VERSION = "dk1"
+REQUEST_ID_NAMESPACE = uuid.UUID("5f0c8e2a-6c1b-5d7e-9a3f-1b2c3d4e5f60")
 RECORD_CLASSES = frozenset({"foia_request_log"})
 PERIOD_BASES = frozenset({"calendar", "fiscal", "custom"})
 
@@ -261,7 +262,9 @@ class Ledger:
             row = conn.execute("SELECT request_id FROM requests WHERE dedupe_key=?", (key,)).fetchone()
             if row is not None:
                 return DraftResult(row[0], key, False, self._overlaps(conn, row[0]))
-            request_id = request_id or str(uuid.uuid4())
+            # Deterministic UUIDv5 from the semantic key: the same scope gets the
+            # same ID in every ledger, so review packets reproduce exactly.
+            request_id = request_id or str(uuid.uuid5(REQUEST_ID_NAMESPACE, key))
             try:
                 uuid.UUID(request_id)
             except ValueError as exc:

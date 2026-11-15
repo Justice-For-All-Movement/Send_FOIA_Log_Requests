@@ -24,11 +24,38 @@ class CliProcessTests(unittest.TestCase):
         self.assertEqual(help_result.returncode, 0)
         self.assertIn("dispatch", help_result.stdout)
 
-        draft = self.run_cli("--config", "fixtures/offline-config.json", "draft")
-        self.assertEqual(draft.returncode, 0)
-        self.assertEqual(json.loads(draft.stdout), {
-            "command": "draft", "mode": "dry_run", "status": "not_implemented"
+        campaign = self.run_cli("--config", "fixtures/offline-config.json", "campaign")
+        self.assertEqual(campaign.returncode, 0)
+        self.assertEqual(json.loads(campaign.stdout), {
+            "command": "campaign", "mode": "dry_run", "status": "not_implemented"
         })
+
+    def test_fixture_dry_run_end_to_end_sends_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = str(Path(directory) / "state" / "ledger.sqlite")
+            out = str(Path(directory) / "packets")
+            draft = self.run_cli(
+                "--config", "fixtures/offline-config.json", "draft", "--ledger", ledger,
+                "--directory-source", "fixtures/directory", "--coverage", "fixtures/aggregator_export",
+                "--profile", "fixtures/profiles/synthetic-requester.json",
+                "--select", "fed:doj/oip:calendar:2024", "--select", "fed:doj/oip:calendar:2023",
+                "--out", out, "--as-of", "2026-11-15T00:00:00Z")
+            self.assertEqual(draft.returncode, 0, draft.stderr)
+            summary = json.loads(draft.stdout)
+            self.assertEqual(summary["outbound_messages_sent"], 0)
+            self.assertEqual(summary["decisions"], ["draft", "suppressed_public_coverage"])
+            self.assertFalse(summary["ext_corpus_satisfied"])
+            too_many = self.run_cli(
+                "--config", "fixtures/offline-config.json", "draft", "--ledger", ledger,
+                "--coverage", "fixtures/aggregator_export", "--profile", "fixtures/profiles/synthetic-requester.json",
+                "--select", "fed:doj/oip:calendar:2020", "--select", "fed:doj/oip:calendar:2021",
+                "--select", "fed:doj/oip:calendar:2022", "--out", out)
+            self.assertEqual(too_many.returncode, 2)
+            self.assertIn("exceeds dry-run cap 2", too_many.stderr)
+            review = self.run_cli("review", "--ledger", ledger, "--packet", summary["packet"],
+                                  "--actor", "operator:test", "--note", "fixture review")
+            self.assertEqual(review.returncode, 0, review.stderr)
+            self.assertFalse(json.loads(review.stdout)["dispatch_authorized"])
 
     def test_invalid_config_fails_before_command_and_dispatch_denied(self):
         with tempfile.TemporaryDirectory() as directory:
