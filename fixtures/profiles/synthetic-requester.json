@@ -1,0 +1,12 @@
+{
+  "profile_id": "synthetic-requester-1",
+  "requester_principal": "requester:synthetic-1",
+  "name": "Synthetic Requester (TEST FIXTURE - NOT A REAL PERSON)",
+  "organization": "Example Test Organization",
+  "reply_email": "requester@example.invalid",
+  "reply_postal": null,
+  "verified": false,
+  "synthetic": true,
+  "fee_policy": {"max_authorized_usd": 0, "fee_waiver_basis": null},
+  "delivery_format": "CSV or spreadsheet preferred; PDF acceptable"
+}
