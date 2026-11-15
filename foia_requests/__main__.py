@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 
 from .config import Config, ConfigurationError
 
-COMMANDS = ("directory", "campaign", "draft", "review", "dispatch", "receipt", "response", "continue", "export")
-IMPLEMENTED = ("directory", "draft", "review")
+COMMANDS = ("directory", "campaign", "draft", "review", "dispatch", "receipt", "response", "continue", "export",
+            "status")
+IMPLEMENTED = ("directory", "draft", "review", "status")
 
 
 def _period(text):
@@ -54,6 +55,9 @@ def build_parser():
                                  help="COMPONENT:calendar:YYYY | COMPONENT:fiscal:YYYY | COMPONENT:custom:START:END")
             command.add_argument("--out", required=True, help="Private packet output folder")
             command.add_argument("--as-of", help="UTC timestamp recorded in the packet (default: now)")
+        elif name == "status":
+            command.add_argument("--ledger", required=True)
+            command.add_argument("--backup-manifest", help="Manifest written by a verified backup")
         elif name == "review":
             command.add_argument("--ledger", required=True)
             command.add_argument("--packet", required=True)
@@ -127,6 +131,11 @@ def _run(args, cfg):
                     "outbound_messages_sent": packet["outbound_messages_sent"],
                     "decisions": [e["decision"] for e in packet["entries"]],
                     "ext_corpus_satisfied": packet["corpus_gate"]["ext_corpus_satisfied"]}
+        if args.command == "status":
+            from .operations import health_report
+            manifest = json.loads(open(args.backup_manifest, encoding="utf-8").read()) if args.backup_manifest else None
+            now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            return health_report(ledger, now, backup_manifest=manifest)
         from .dryrun import record_review
         reviewed = record_review(ledger, args.packet, args.actor, args.note)
         return {"command": "review", "reviewed_requests": reviewed, "dispatch_authorized": False}
