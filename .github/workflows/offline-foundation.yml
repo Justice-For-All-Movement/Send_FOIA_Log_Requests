@@ -34,6 +34,12 @@ jobs:
             --select fed:doj/oip:calendar:2024 --select fed:doj/oip:calendar:2023 \
             --out "$RUNNER_TEMP/packets" --as-of 2026-11-15T00:00:00Z > "$RUNNER_TEMP/dry-run.json"
           python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'dry-run.json'))); assert r['outbound_messages_sent']==0; assert r['decisions']==['draft','suppressed_public_coverage']; assert r['ext_corpus_satisfied'] is False"
+          "$RUNNER_TEMP/consumer/bin/foia-requests" --config fixtures/offline-config.json prepare \
+            --ledger "$RUNNER_TEMP/state/ledger.sqlite" --coverage fixtures/aggregator_export \
+            --profile fixtures/profiles/synthetic-requester.json --last-days 7 --today 2026-11-16 \
+            --out "$RUNNER_TEMP/prepare" --as-of 2026-11-16T00:00:00Z > "$RUNNER_TEMP/prepare.json"
+          python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'prepare.json'))); assert r['outbound_messages_sent']==0 and r['live_dispatch_authorized'] is False and r['drafts']==4"
+          grep -q "Nothing was sent" "$RUNNER_TEMP/prepare/review-packet.md"
           if "$RUNNER_TEMP/consumer/bin/foia-requests" --config fixtures/offline-config.json dispatch; then
             echo "Unsafe: dispatch did not fail closed" >&2
             exit 1
