@@ -80,7 +80,16 @@ def main():
     redirect = json.loads((root / 'registry/roadmap.json').read_text())
     require(redirect.get('redirectTo') == 'registry/prs.json', 'Legacy roadmap must redirect to canonical registry')
     require('milestones' not in redirect and 'plannedPrCount' not in redirect, 'Duplicate legacy plan denominator')
-    for path in (root / 'README.md', root / 'docs/DEVELOPMENT_PLAN.md', root / 'docs/HANDOFF_STATUS.md'):
+    checklist = root / 'docs/OWNER_SENDING_CHECKLIST.md'
+    require(checklist.is_file(), 'Missing owner sending checklist')
+    text = checklist.read_text()
+    require('Sending is **disabled**' in text, 'Checklist must state that sending is disabled')
+    for heading in ('Requester identity', 'Legal review of the template', 'Transport and its environment variables',
+                    'Rate limits and fee ceiling', 'Command sequence after approval'):
+        require(re.search(r'^## \d+\. ' + re.escape(heading), text, re.M) is not None, 'Checklist missing section: ' + heading)
+    for path in (root / 'README.md', root / 'docs/HANDOFF_STATUS.md'):
+        require('OWNER_SENDING_CHECKLIST.md' in path.read_text(), 'Owner sending checklist not linked from ' + path.name)
+    for path in (root / 'README.md', root / 'docs/DEVELOPMENT_PLAN.md', root / 'docs/HANDOFF_STATUS.md', checklist):
         text = path.read_text()
         for target in re.findall(r'\]\(([^)]+)\)', text):
             if '://' in target or target.startswith('#'):
