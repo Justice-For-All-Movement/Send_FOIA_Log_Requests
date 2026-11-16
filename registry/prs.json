@@ -4,7 +4,7 @@
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 14,
-  "observedAt": "2026-11-16T02:05:00Z",
+  "observedAt": "2026-11-16T21:15:00Z",
   "planProvenance": {
     "baselineDate": "2026-10-11",
     "authority": "Current owner instruction to complete plans and registry integration; Engine-Room issue 71 recovered scope; repository evidence distinguished in plan",
@@ -60,7 +60,10 @@
       "externalPrerequisites": [],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-02"
+      "planSection": "SFL-02",
+      "contributingPrs": [
+        25
+      ]
     },
     {
       "id": "SFL-03",
@@ -176,7 +179,9 @@
       "id": "SFL-08",
       "title": "Controlled submission adapters and rate limits",
       "origin": "addition",
-      "prs": [],
+      "prs": [
+        25
+      ],
       "scopeBasis": "2026-10-11 engineering reconstruction of documented inherited scope and completion gaps; not original approved milestone titles",
       "requirementIds": [
         "SR-04",
@@ -187,7 +192,7 @@
         "SFL-07"
       ],
       "externalPrerequisites": [
-        "EXT-DISPATCH for live transport"
+        "EXT-DISPATCH for live transport: owner-supplied verified profile, approved template, transport credentials, FOIA_SENDING_ENABLED and per-batch confirmation"
       ],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
@@ -215,7 +220,10 @@
       "externalPrerequisites": [],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-09"
+      "planSection": "SFL-09",
+      "contributingPrs": [
+        25
+      ]
     },
     {
       "id": "SFL-10",
@@ -349,6 +357,21 @@
     }
   ],
   "pullRequests": [
+    {
+      "id": 5343901280,
+      "number": 25,
+      "title": "SFL-08/09: owner-gated sending path (SMTP, manual filing, approve/queue/send, FOIA.gov import)",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/25",
+      "state": "closed",
+      "draft": false,
+      "createdAt": "2026-11-16T19:47:40Z",
+      "updatedAt": "2026-11-16T19:48:35Z",
+      "closedAt": "2026-11-16T19:48:35Z",
+      "mergedAt": "2026-11-16T19:48:35Z",
+      "headSha": "5a525d9c0f64ab3fcb7030c18ad91813e5e28c2e",
+      "baseRef": "main",
+      "mergeCommitSha": "bb5fac1c47e8a8dea87b67da50af69c4904ef956"
+    },
     {
       "id": 5329703356,
       "number": 23,
