@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
@@ -75,6 +77,8 @@ class RequestTemplate:
     subject: str
     body: str
     sha256: str
+    approval: dict | None = None
+    source_dir: str | None = field(default=None, compare=False)
 
     @property
     def key(self):
@@ -85,24 +89,126 @@ def template_digest(data) -> str:
     return sha256_text(canonical_json(data))
 
 
+APPROVAL_FIELDS = {"reviewer_role", "reviewed_on", "scope", "approved_from"}
+APPROVAL_PHRASE = "I CONFIRM LEGAL REVIEW OF {key} {sha12}"
+
+
+def template_dir(env=None):
+    """Template directory: ``FOIA_TEMPLATE_DIR`` when set, else the packaged templates."""
+    env = os.environ if env is None else env
+    return Path(env.get("FOIA_TEMPLATE_DIR") or TEMPLATE_DIR)
+
+
+def _read_lock(directory):
+    return json.loads((Path(directory) / "LOCK.json").read_text(encoding="utf-8"))
+
+
 def load_template(template_id="annual_foia_log_request", revision="1", directory=TEMPLATE_DIR):
     path = Path(directory) / f"{template_id}.v{revision}.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     expected = {"template_id", "revision", "jurisdiction", "record_class", "status", "authority_note",
                 "requested_fields", "subject", "body"}
-    if set(data) != expected:
+    if set(data) not in (expected, expected | {"approval"}):
         raise TemplateError("template fields do not match the template contract")
     if data["template_id"] != template_id or data["revision"] != revision:
         raise TemplateError("template file name does not match its id/revision")
+    approval = data.get("approval")
+    if approval is not None:
+        if not isinstance(approval, dict) or set(approval) != APPROVAL_FIELDS:
+            raise TemplateError("template approval must contain " + ", ".join(sorted(APPROVAL_FIELDS)))
+        if data["status"] != "approved":
+            raise TemplateError("only an approved template may carry approval metadata")
     digest = template_digest(data)
-    lock = json.loads((Path(directory) / "LOCK.json").read_text(encoding="utf-8"))
+    lock = _read_lock(directory)
     if lock.get(f"{template_id}@{revision}") != digest:
         raise TemplateError("template content changed without a new revision (LOCK.json mismatch)")
     for text in (data["subject"], data["body"]):
         Template(text).substitute(_PLACEHOLDER_PROBE)  # unknown placeholders fail here
     return RequestTemplate(data["template_id"], data["revision"], data["jurisdiction"], data["record_class"],
                            data["status"], data["authority_note"], tuple(data["requested_fields"]),
-                           data["subject"], data["body"], digest)
+                           data["subject"], data["body"], digest, approval, str(Path(directory)))
+
+
+def locked_revisions(template_id="annual_foia_log_request", directory=TEMPLATE_DIR):
+    revisions = []
+    for key in _read_lock(directory):
+        name, _, revision = key.partition("@")
+        if name == template_id and revision.isdigit():
+            revisions.append(int(revision))
+    return sorted(revisions)
+
+
+def load_active_template(template_id="annual_foia_log_request", directory=None):
+    """Load the newest revision pinned in LOCK.json (approved or not)."""
+    directory = template_dir() if directory is None else Path(directory)
+    revisions = locked_revisions(template_id, directory)
+    if not revisions:
+        raise TemplateError(f"no locked revision of {template_id}")
+    return load_template(template_id, str(revisions[-1]), directory)
+
+
+def lock_matches(template: RequestTemplate) -> bool:
+    """Re-read LOCK.json and confirm the template's hash is still pinned there."""
+    if template.source_dir is None:
+        return False
+    try:
+        return _read_lock(template.source_dir).get(template.key) == template.sha256
+    except (OSError, ValueError):
+        return False
+
+
+def approval_phrase(template: RequestTemplate) -> str:
+    return APPROVAL_PHRASE.format(key=template.key, sha12=template.sha256[:12])
+
+
+def approve_template(*, directory, reviewer_role, reviewed_on, scope, confirm, template_id="annual_foia_log_request",
+                     source=None):
+    """Write the next revision with ``status: approved`` and pin its hash in LOCK.json.
+
+    The text is copied from the newest locked revision unless ``source`` (a JSON
+    file with ``subject``/``body``/``requested_fields`` and optionally
+    ``authority_note``) supplies reviewer-edited wording. ``confirm`` must equal
+    :func:`approval_phrase` of the base revision, typed by the owner.
+    ``reviewer_role`` is a role label (e.g. "owner's counsel"), not a personal
+    name, because the approved file is meant to be committed.
+    """
+    directory = Path(directory)
+    base = load_active_template(template_id, directory)
+    if confirm != approval_phrase(base):
+        raise TemplateError(f"confirmation must be exactly: {approval_phrase(base)}")
+    reviewer_role = _clean_line(reviewer_role, "reviewer_role")
+    scope = _clean_line(scope, "scope")
+    try:
+        if date.fromisoformat(reviewed_on).isoformat() != reviewed_on:
+            raise ValueError
+    except (TypeError, ValueError) as exc:
+        raise TemplateError("reviewed_on must be YYYY-MM-DD") from exc
+    if re.search(r"@|\d{3}[-. ]\d{3}[-. ]\d{4}", reviewer_role):
+        raise TemplateError("reviewer_role must be a role label, not contact details")
+    data = json.loads((directory / f"{template_id}.v{base.revision}.json").read_text(encoding="utf-8"))
+    data.pop("approval", None)
+    if source is not None:
+        edited = json.loads(Path(source).read_text(encoding="utf-8"))
+        unknown = set(edited) - {"subject", "body", "requested_fields", "authority_note"}
+        if unknown:
+            raise TemplateError("source may only change subject, body, requested_fields, authority_note")
+        data.update(edited)
+    revision = str(int(base.revision) + 1)
+    data.update(revision=revision, status="approved", approval={
+        "reviewer_role": reviewer_role, "reviewed_on": reviewed_on, "scope": scope,
+        "approved_from": f"{base.key} {base.sha256}"})
+    data["authority_note"] = (f"Approved {reviewed_on} by {reviewer_role} after legal review ({scope}). "
+                              f"Derived from {base.key}.")
+    for text in (data["subject"], data["body"]):
+        Template(text).substitute(_PLACEHOLDER_PROBE)
+    target = directory / f"{template_id}.v{revision}.json"
+    if target.exists():
+        raise TemplateError(f"{target.name} already exists")
+    lock = _read_lock(directory)
+    lock[f"{template_id}@{revision}"] = template_digest(data)
+    target.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (directory / "LOCK.json").write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return load_template(template_id, revision, directory)
 
 
 _PLACEHOLDER_PROBE = {k: "" for k in (

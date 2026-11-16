@@ -98,8 +98,11 @@ def health_report(ledger, now, *, backup_manifest=None, stuck_after_hours=1, bac
     routes = {r[0]: r[1] for r in conn.execute(
         "SELECT state, COUNT(*) FROM contact_routes WHERE superseded_at IS NULL GROUP BY state")}
     components = conn.execute("SELECT COUNT(*) FROM components").fetchone()[0]
+    manual = "SELECT attempt_id FROM dispatch_log WHERE outcome='manual_pending'"
     stuck = conn.execute("SELECT attempt_id, state, updated_at FROM outbox WHERE state IN ('submitting','unknown') "
-                         "ORDER BY updated_at").fetchall()
+                         f"AND attempt_id NOT IN ({manual}) ORDER BY updated_at").fetchall()
+    awaiting_manual = conn.execute(f"SELECT COUNT(*) FROM outbox WHERE state='submitting' AND attempt_id IN ({manual})"
+                                   ).fetchone()[0]
     oldest = stuck[0]["updated_at"] if stuck else None
     unmatched = conn.execute("SELECT COUNT(*) FROM responses WHERE request_id IS NULL").fetchone()[0]
     tasks = conn.execute("SELECT COUNT(*) FROM followup_tasks WHERE status='open'").fetchone()[0]
@@ -123,6 +126,6 @@ def health_report(ledger, now, *, backup_manifest=None, stuck_after_hours=1, bac
         status = "degraded" if problems else "healthy"
     return {"status": status, "problems": problems, "request_states": dict(sorted(states.items())),
             "routes": dict(sorted(routes.items())), "components": components,
-            "stuck_attempts": len(stuck), "oldest_stuck_at": oldest, "unmatched_responses": unmatched,
+            "stuck_attempts": len(stuck), "oldest_stuck_at": oldest, "awaiting_manual_filing": awaiting_manual, "unmatched_responses": unmatched,
             "open_tasks": tasks, "backup_age_hours": backup_age, "dispatch_stopped": stopped(ledger),
             "note": "process-up status cannot certify submissions"}

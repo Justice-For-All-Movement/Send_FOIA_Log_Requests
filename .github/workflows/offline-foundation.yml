@@ -40,6 +40,9 @@ jobs:
             --out "$RUNNER_TEMP/prepare" --as-of 2026-11-16T00:00:00Z > "$RUNNER_TEMP/prepare.json"
           python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'prepare.json'))); assert r['outbound_messages_sent']==0 and r['live_dispatch_authorized'] is False and r['drafts']==4"
           grep -q "Nothing was sent" "$RUNNER_TEMP/prepare/review-packet.md"
+          "$RUNNER_TEMP/consumer/bin/foia-requests" approve template > "$RUNNER_TEMP/approve.json"
+          python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'approve.json'))); assert r['status']=='dry_run_nothing_written'"
+          "$RUNNER_TEMP/consumer/bin/foia-requests" send --help > /dev/null
           if "$RUNNER_TEMP/consumer/bin/foia-requests" --config fixtures/offline-config.json dispatch; then
             echo "Unsafe: dispatch did not fail closed" >&2
             exit 1

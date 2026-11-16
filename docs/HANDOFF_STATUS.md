@@ -2,6 +2,14 @@
 
 Documentation baseline: **2026-10-11**. Source/PR verification: **2026-10-11T20:39:09.617Z**. This is a dated evidence ledger, not a live dispatch-status feed.
 
+## Update — 2026-11-16: owner-gated sending path (SFL-08/09 completion)
+
+- New: `smtp_transport.py` (STARTTLS required and verified before credentials; definite vs unknown outcome classification; receipt with SMTP reply, Message-ID and SHA-256 of the exact wire message), `manual_filing.py` + `pdf.py` (ready-to-paste text, PDF and checklist for portal-only agencies; `receipt manual` records the filing), `sending.py` (the five-condition gate and the per-batch send loop with rate limits, minimum interval, emergency-stop and env-flag re-checks before every message), `foia_gov.py` + `scripts/fetch_foia_gov_directory.py` + the manual "FOIA.gov directory snapshot" workflow (official FOIA.gov agency components into `data/foia_gov_directory`).
+- CLI: `operator`, `approve template`, `approve batch`, `queue`, `send` (dry run by default), `stop`, `resume`, `receipt manual|ack|reconcile`. `dispatch` stays retired and fails closed.
+- Gate (all required): verified non-synthetic profile outside the checkout; approved template with approval record and LOCK.json hash, matching the batch; `FOIA_TRANSPORT_PROVIDER` smtp (all `FOIA_SMTP_*` set) or manual, matching the batch; `FOIA_SENDING_ENABLED=true`; typed `SEND <n> <auth-id>`. The repository meets none of them. `Config` files still cannot enable transport.
+- Tests use a local fake SMTP server on 127.0.0.1 with a throwaway certificate and the `.gov.example` fixtures only. No agency was contacted; nothing was sent.
+- Owner's remaining steps: [OWNER_SENDING_CHECKLIST.md](OWNER_SENDING_CHECKLIST.md).
+
 ## Update — 2026-11-16T02:05Z: custom periods and the `prepare` packet
 
 - #22 (SFL-03, contributing): any past date range via `--start/--end` or `--last-days N` (N complete days ending yesterday), in addition to `--calendar-year`/`--fiscal-year`. End dates after today, inverted ranges and pre-FOIA starts are rejected. Ranges ending within 30 days get a warning that agencies may not have logged or released recent entries yet. `draft` takes `--component` plus a period option. `--select` and annual behaviour are unchanged.

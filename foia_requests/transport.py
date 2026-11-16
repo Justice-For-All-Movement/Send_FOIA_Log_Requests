@@ -1,17 +1,18 @@
 """Pluggable submission transport interface (fail-closed).
 
-No real provider is implemented. Live transport needs EXT-DISPATCH: an exact
-authorized batch, verified official routes and provider credentials supplied
-through the environment (never the repository). Until a reviewed adapter
-exists, every non-test provider name fails closed.
+Live transports exist (``smtp_transport.SmtpSender`` and the human-in-the-loop
+``manual`` filing transport) but are only constructed by
+``sending.open_gate`` after every sending precondition holds; see
+docs/OWNER_SENDING_CHECKLIST.md.
 
 Environment configuration
-  FOIA_TRANSPORT_PROVIDER   "disabled" (default) | "fake" (tests only) | anything
-                            else -> TransportNotImplemented
+  FOIA_TRANSPORT_PROVIDER   "disabled" (default) | "smtp" | "manual" |
+                            "fake" (tests only) | anything else ->
+                            TransportNotImplemented
   FOIA_TRANSPORT_FAKE_ALLOWED  must be "1" to construct the fake provider, so a
                             stray setting cannot route production work to it.
-Future live adapters would read, e.g., FOIA_SMTP_HOST / FOIA_SMTP_USERNAME /
-FOIA_SMTP_PASSWORD or FOIA_PORTAL_API_TOKEN; none are read today.
+``sender_from_env`` itself never returns a live sender: "smtp"/"manual" go
+through the sending gate.
 """
 from __future__ import annotations
 
@@ -79,5 +80,8 @@ def sender_from_env(env=None) -> Sender:
             raise TransportDisabled("fake transport requires FOIA_TRANSPORT_FAKE_ALLOWED=1 (tests only)")
         from .fake_transport import FakeSender
         return FakeSender()
+    if provider in ("smtp", "manual"):
+        raise TransportDisabled(f"transport {provider!r} is only available through the sending gate "
+                                "(foia-requests send); see docs/OWNER_SENDING_CHECKLIST.md")
     raise TransportNotImplemented(
         f"transport provider {provider!r} is not implemented; live dispatch requires EXT-DISPATCH and a reviewed adapter")

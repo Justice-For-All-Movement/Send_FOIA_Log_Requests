@@ -1,10 +1,12 @@
 """SFL-08 controlled submission worker with rate limits and outcome classes.
 
 ``run_once`` processes at most one outbox intent through an injected
-``Sender``. Live senders are refused unless the configuration enables
-transport, and ``Config`` currently forbids that, so only the in-memory fake
-can be exercised (tests). The disabled default sender is never even claimed
-against, so no intent can get stuck in ``submitting``.
+``Sender``. Live senders are refused unless ``config.transport_enabled`` is
+true. A file ``Config`` can never set that; only the ``SendingAuthority``
+returned by ``sending.open_gate`` (all owner preconditions met) does. A live
+sender may only process intents whose authorization names that same
+transport. The disabled default sender is never even claimed against, so no
+intent can get stuck in ``submitting``.
 
 Outcome handling (never a blind resend):
 * accepted        -> outbox submitted, request submitted, immutable receipt
@@ -13,12 +15,15 @@ Outcome handling (never a blind resend):
 * auth_failed     -> outbox failed, request delivery_failed, dispatch stop set
 * exception/timeout after hand-off -> outbox unknown, request submission_unknown;
   reconciliation (SFL-09) is required, never automatic retry.
+* manual_pending  -> filing copy written; attempt stays submitting until the
+  owner records the manual filing outcome (manual_filing.record_manual_filing).
 Per-destination-host and global hourly caps are enforced from the durable
 attempt log, before any transport call.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
@@ -28,6 +33,7 @@ from .ledger import canonical_json
 from .transport import DisabledSender, Sender, TransportDisabled
 
 MAX_TRIES = 3
+MANUAL_OUTCOME = "manual_pending"
 
 
 @dataclass(frozen=True)
@@ -67,18 +73,26 @@ def _rate_ok(ledger, host, now, limits):
     return per_host < limits.per_destination_per_hour and total < limits.global_per_hour
 
 
-def run_once(ledger, sender: Sender, config, *, owner, now, limits=RateLimits()):
+def run_once(ledger, sender: Sender, config, *, owner, now, limits=RateLimits(), auth_id=None):
     if isinstance(sender, DisabledSender):
         return {"status": "transport_disabled", "sent": 0}
-    if getattr(sender, "live", True) and not config.transport_enabled:
+    live = getattr(sender, "live", True)
+    if live and not config.transport_enabled:
         raise TransportDisabled("live sender refused: transport is disabled by configuration")
-    attempt = claim_next(ledger, owner, now)
+    attempt = claim_next(ledger, owner, now, auth_id=auth_id)
     if attempt is None:
         return {"status": "idle", "sent": 0}
     row = ledger.connection.execute("SELECT o.*, c.kind FROM outbox o JOIN contact_routes c ON c.route_id=o.route_id "
                                     "WHERE o.attempt_id=?", (attempt,)).fetchone()
+    if live:
+        envelope = json.loads(ledger.connection.execute("SELECT envelope_json FROM authorizations WHERE auth_id=?",
+                                                        (row["auth_id"],)).fetchone()[0])
+        if envelope.get("transport") != sender.name:
+            _release(ledger, attempt, now)
+            return {"status": "blocked", "attempt_id": attempt, "sent": 0,
+                    "reason": f"authorization is for {envelope.get('transport')}, not {sender.name}"}
     host = destination_host(row["kind"], row["destination"])
-    if not _rate_ok(ledger, host, now, limits):
+    if sender.name != "manual" and not _rate_ok(ledger, host, now, limits):
         with ledger.transaction() as conn:
             conn.execute("UPDATE outbox SET state='queued', lease_owner=NULL, lease_expires=NULL, not_before=?, "
                          "updated_at=? WHERE attempt_id=?", (_fmt(_ts(now) + timedelta(hours=1)), now, attempt))
@@ -107,10 +121,20 @@ def run_once(ledger, sender: Sender, config, *, owner, now, limits=RateLimits())
         return {"status": "submission_unknown", "attempt_id": attempt, "sent": None}
 
 
+def _release(ledger, attempt, now):
+    with ledger.transaction() as conn:
+        conn.execute("UPDATE outbox SET state='queued', lease_owner=NULL, lease_expires=NULL, updated_at=? "
+                     "WHERE attempt_id=? AND state='leased'", (now, attempt))
+
+
 def _record(ledger, message, result, host, owner, now):
     attempt, rid = message.attempt_id, message.request_id
     with ledger.transaction() as conn:
         _log(conn, message, host, now, result.outcome, result)
+        if result.outcome == MANUAL_OUTCOME:
+            ledger._event(conn, rid, "submitting", "submitting", owner,
+                          "manual filing copy written; awaiting the owner's filing", result.receipt, now)
+            return {"status": "manual_packet_written", "attempt_id": attempt, "sent": 0}
         if result.outcome == "accepted":
             receipt = canonical_json(result.receipt or {})
             if (result.receipt or {}).get("content_sha256") not in (None, message.content_sha256):

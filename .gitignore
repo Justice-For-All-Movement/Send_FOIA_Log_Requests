@@ -2,3 +2,13 @@ __pycache__/
 *.pyc
 build/
 *.egg-info/
+# Private operator material: never commit identity, credentials or ledgers.
+requester*.json
+!fixtures/profiles/synthetic-requester.json
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+*.pem
+*.key
+*.eml
