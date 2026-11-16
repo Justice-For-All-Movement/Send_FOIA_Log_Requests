@@ -1,6 +1,11 @@
-"""SFL-03 annual period selection and public-log gap analysis.
+"""SFL-03 period selection (annual or custom date range) and public-log gap analysis.
 
-Periods are explicit: callers pass the years/bases they want. Nothing infers a
+Periods are explicit: callers pass the years/bases or exact dates they want.
+Custom ranges (``--start/--end`` or ``--last-days N``) are validated by
+``check_range``: future end dates are rejected and recent ranges carry review
+warnings, because agencies may log or release very recent requests late. A
+FOIA request for such a range asks for "the log of requests received between
+X and Y"; the same template and coverage analysis apply to any range. Nothing infers a
 historical range (no 1993-2025 default borrowed from FOIA_Bias_Analysis).
 Coverage decisions compare a component-period against Aggregator log-coverage
 records (``aggregator_contract``):
@@ -62,6 +67,67 @@ def fiscal_year(year: int, start_month: int = 10) -> Period:
 
 def custom(start: str, end: str) -> Period:
     return Period(date.fromisoformat(start), date.fromisoformat(end), "custom")
+
+
+FOIA_EARLIEST = date(1967, 7, 4)  # FOIA took effect July 4, 1967
+MAX_LAST_DAYS = 3660
+RECENT_WARNING_DAYS = 30
+
+
+def last_days(n: int, today: date) -> Period:
+    """The ``n`` complete days ending yesterday (``today`` is excluded as still in progress).
+
+    ``last_days(7, date(2026, 11, 16))`` is 2026-11-09..2026-11-15 ("the last week").
+    """
+    if type(n) is not int or not 1 <= n <= MAX_LAST_DAYS:
+        raise PeriodError(f"--last-days must be an integer 1..{MAX_LAST_DAYS}")
+    end = today - ONE_DAY
+    return Period(end - timedelta(days=n - 1), end, "custom")
+
+
+def check_range(period: Period, today: date):
+    """Validate an operator-chosen range against ``today``; return review warnings.
+
+    Rejects end dates after ``today`` and ranges before FOIA existed. Warns, but
+    allows, recent periods: agencies log and publish with a delay, so a request
+    covering the last few weeks may legitimately produce an incomplete log.
+    """
+    if period.end > today:
+        raise PeriodError(f"end date {period.end.isoformat()} is in the future (today is {today.isoformat()})")
+    if period.start < FOIA_EARLIEST:
+        raise PeriodError("start date precedes the FOIA (1967-07-04)")
+    warnings = []
+    if period.end == today:
+        warnings.append("range ends today; requests received later today will not be in the log")
+    if (today - period.end).days < RECENT_WARNING_DAYS:
+        warnings.append(f"range ends within {RECENT_WARNING_DAYS} days of today; agencies may not have logged "
+                        "every request yet or may be slow to release very recent log entries")
+    return warnings
+
+
+def select_period(*, start=None, end=None, last=None, calendar=None, fiscal=None, today: date):
+    """Exactly one period selector -> (Period, warnings). Annual selectors are unchanged."""
+    chosen = [name for name, value in (("--start/--end", start or end), ("--last-days", last),
+                                       ("--calendar-year", calendar), ("--fiscal-year", fiscal))
+              if value is not None]
+    if len(chosen) != 1:
+        raise PeriodError("choose exactly one of --start/--end, --last-days, --calendar-year, --fiscal-year")
+    if chosen[0] == "--start/--end":
+        if not (start and end):
+            raise PeriodError("--start and --end must be given together")
+        try:
+            period = custom(start, end)
+        except ValueError as exc:
+            if isinstance(exc, PeriodError):
+                raise PeriodError(f"inverted range: start {start} is after end {end}") from exc
+            raise PeriodError(f"dates must be YYYY-MM-DD: {exc}") from exc
+    elif last is not None:
+        period = last_days(last, today)
+    elif calendar is not None:
+        period = explicit_periods([calendar])[0]
+    else:
+        period = explicit_periods([fiscal], "fiscal")[0]
+    return period, check_range(period, today)
 
 
 def explicit_periods(years, basis="calendar"):

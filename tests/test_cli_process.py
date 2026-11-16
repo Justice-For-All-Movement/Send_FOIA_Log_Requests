@@ -57,6 +57,31 @@ class CliProcessTests(unittest.TestCase):
             self.assertEqual(review.returncode, 0, review.stderr)
             self.assertFalse(json.loads(review.stdout)["dispatch_authorized"])
 
+    def test_draft_with_custom_range_flags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = ["--config", "fixtures/offline-config.json", "draft", "--ledger",
+                    str(Path(directory) / "state" / "ledger.sqlite"), "--directory-source", "fixtures/directory",
+                    "--coverage", "fixtures/aggregator_export", "--profile",
+                    "fixtures/profiles/synthetic-requester.json", "--out", str(Path(directory) / "packets"),
+                    "--as-of", "2026-11-16T00:00:00Z", "--today", "2026-11-16"]
+            week = self.run_cli(*base, "--component", "fed:doj/oip", "--last-days", "7")
+            self.assertEqual(week.returncode, 0, week.stderr)
+            summary = json.loads(week.stdout)
+            self.assertEqual((summary["decisions"], summary["outbound_messages_sent"]), (["draft"], 0))
+            self.assertEqual(len(summary["period_warnings"]), 1)
+            packet = json.loads(Path(summary["packet"]).read_text())
+            self.assertEqual(packet["entries"][0]["period"], ["2026-11-09", "2026-11-15", "custom"])
+            future = self.run_cli(*base, "--component", "fed:doj/oip", "--start", "2026-11-01", "--end", "2026-12-01")
+            self.assertEqual(future.returncode, 2)
+            self.assertIn("future", future.stderr)
+            inverted = self.run_cli(*base, "--component", "fed:doj/oip", "--start", "2026-02-01",
+                                    "--end", "2026-01-01")
+            self.assertEqual(inverted.returncode, 2)
+            self.assertIn("inverted", inverted.stderr)
+            orphan = self.run_cli(*base, "--last-days", "7")
+            self.assertEqual(orphan.returncode, 2)
+            self.assertIn("--component", orphan.stderr)
+
     def test_invalid_config_fails_before_command_and_dispatch_denied(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.json"

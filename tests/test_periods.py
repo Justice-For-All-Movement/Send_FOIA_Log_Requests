@@ -153,3 +153,56 @@ class ContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CustomRangeTests(unittest.TestCase):
+    TODAY = date(2026, 11, 16)
+
+    def test_last_week_is_seven_complete_days_ending_yesterday(self):
+        from foia_requests.periods import last_days
+        period = last_days(7, self.TODAY)
+        self.assertEqual((period.iso(), period.basis, period.days), (("2026-11-09", "2026-11-15"), "custom", 7))
+        for bad in (0, -1, 3661, "7", True):
+            with self.assertRaises(PeriodError):
+                last_days(bad, self.TODAY)
+
+    def test_select_period_validation(self):
+        from foia_requests.periods import select_period
+        period, warnings = select_period(start="2026-01-01", end="2026-03-31", today=self.TODAY)
+        self.assertEqual((period.iso(), warnings), (("2026-01-01", "2026-03-31"), []))
+        with self.assertRaisesRegex(PeriodError, "future"):
+            select_period(start="2026-11-01", end="2026-11-17", today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "inverted"):
+            select_period(start="2026-03-01", end="2026-02-01", today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "YYYY-MM-DD"):
+            select_period(start="2026-02-30", end="2026-03-01", today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "together"):
+            select_period(start="2026-01-01", today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "exactly one"):
+            select_period(last=7, calendar=2024, today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "exactly one"):
+            select_period(today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "precedes"):
+            select_period(start="1960-01-01", end="1960-12-31", today=self.TODAY)
+        with self.assertRaisesRegex(PeriodError, "future"):
+            select_period(calendar=2026, today=self.TODAY)  # year not yet over
+
+    def test_recent_ranges_warn_but_are_allowed(self):
+        from foia_requests.periods import select_period
+        _, warnings = select_period(last=7, today=self.TODAY)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("slow to release", warnings[0])
+        _, warnings = select_period(start="2026-11-10", end="2026-11-16", today=self.TODAY)
+        self.assertTrue(any("ends today" in w for w in warnings))
+
+    def test_annual_selectors_unchanged(self):
+        from foia_requests.periods import select_period
+        self.assertEqual(select_period(calendar=2024, today=self.TODAY), (calendar_year(2024), []))
+        self.assertEqual(select_period(fiscal=2025, today=self.TODAY), (fiscal_year(2025), []))
+
+    def test_gap_analysis_on_short_custom_range(self):
+        export = load_export(EXPORT_DIR)
+        inside = coverage_decision("fed:doj/oip", custom("2023-03-01", "2023-03-07"), export)
+        self.assertEqual(inside["decision"], "suppress_full_public_coverage")
+        recent = coverage_decision("fed:doj/oip", custom("2026-11-09", "2026-11-15"), export)
+        self.assertEqual((recent["decision"], recent["uncovered_days"]), ("draft", 7))

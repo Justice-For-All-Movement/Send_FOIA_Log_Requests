@@ -45,6 +45,11 @@ class TemplateTests(unittest.TestCase):
         self.assertIn("February 29, 2024 through December 31, 2024", rendered.body)
         self.assertEqual(rendered.manifest["period"], ["2024-02-29", "2024-12-31", "custom"])
 
+    def test_one_week_custom_range_renders_exact_dates(self):
+        rendered = render(self.template, scope("2026-11-09", "2026-11-15", "custom"), COMPONENT, ROUTE, profile())
+        self.assertIn("FOIA requests received from November 9, 2026 through November 15, 2026", rendered.body)
+        self.assertTrue(rendered.subject.endswith("November 9, 2026 to November 15, 2026"))
+
     def test_synthetic_or_incomplete_inputs_never_live_ready(self):
         rendered = render(self.template, scope(), COMPONENT, ROUTE, profile())
         self.assertFalse(rendered.live_ready)
