@@ -82,6 +82,28 @@ class CliProcessTests(unittest.TestCase):
             self.assertEqual(orphan.returncode, 2)
             self.assertIn("--component", orphan.stderr)
 
+    def test_prepare_one_command_packet(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = ["--config", "fixtures/offline-config.json", "prepare", "--ledger",
+                    str(Path(directory) / "state" / "ledger.sqlite"), "--directory-source", "fixtures/directory",
+                    "--coverage", "fixtures/aggregator_export", "--profile",
+                    "fixtures/profiles/synthetic-requester.json", "--today", "2026-11-16",
+                    "--as-of", "2026-11-16T00:00:00Z"]
+            result = self.run_cli(*base, "--last-days", "7", "--out", str(Path(directory) / "week"))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual((summary["drafts"], summary["excluded"], summary["outbound_messages_sent"]), (4, 3, 0))
+            self.assertIn("November 15, 2026", Path(summary["packet"]).read_text(encoding="utf-8"))
+            doj = self.run_cli(*base, "--agency", "doj", "--start", "2025-01-01", "--end", "2025-03-31",
+                               "--out", str(Path(directory) / "q1"))
+            self.assertEqual(doj.returncode, 0, doj.stderr)
+            self.assertEqual(json.loads(doj.stdout)["drafts"], 2)
+            future = self.run_cli(*base, "--start", "2026-11-01", "--end", "2026-11-30",
+                                  "--out", str(Path(directory) / "x"))
+            self.assertEqual(future.returncode, 2)
+            self.assertIn("future", future.stderr)
+            self.assertFalse((Path(directory) / "x").exists())
+
     def test_invalid_config_fails_before_command_and_dispatch_denied(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.json"

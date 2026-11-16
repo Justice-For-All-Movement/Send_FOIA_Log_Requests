@@ -1,7 +1,8 @@
 """Offline CLI; all outbound sends are forbidden.
 
 Implemented: ``directory`` (fixture discovery into the ledger), ``draft``
-(bounded dry-run review packet), ``review`` (record a verified packet review).
+(bounded dry-run review packet), ``prepare`` (read-only Markdown review packet
+for a date range across many agencies), ``review`` (record a verified packet review).
 ``dispatch`` always fails closed. Other families report not_implemented.
 """
 import argparse
@@ -11,9 +12,9 @@ from datetime import datetime, timezone
 
 from .config import Config, ConfigurationError
 
-COMMANDS = ("directory", "campaign", "draft", "review", "dispatch", "receipt", "response", "continue", "export",
+COMMANDS = ("directory", "campaign", "draft", "prepare", "review", "dispatch", "receipt", "response", "continue", "export",
             "status")
-IMPLEMENTED = ("directory", "draft", "review", "status")
+IMPLEMENTED = ("directory", "draft", "prepare", "review", "status")
 
 
 def _period(text):
@@ -80,6 +81,16 @@ def build_parser():
             _add_period_args(command)
             command.add_argument("--out", required=True, help="Private packet output folder")
             command.add_argument("--as-of", help="UTC timestamp recorded in the packet (default: now)")
+        elif name == "prepare":
+            command.add_argument("--ledger", required=True, help="Private ledger database path")
+            command.add_argument("--directory-source", help="Discover and persist this fixture directory first")
+            command.add_argument("--coverage", required=True, help="Aggregator log_coverage export folder")
+            command.add_argument("--profile", required=True, help="Requester profile JSON")
+            command.add_argument("--agency", action="append", help="Agency abbreviation filter, e.g. doj (repeatable)")
+            command.add_argument("--component", action="append", help="Component ID filter (repeatable)")
+            command.add_argument("--out", required=True, help="Private output folder for review-packet.md")
+            command.add_argument("--as-of", help="UTC timestamp recorded in the packet (default: now)")
+            _add_period_args(command)
         elif name == "status":
             command.add_argument("--ledger", required=True)
             command.add_argument("--backup-manifest", help="Manifest written by a verified backup")
@@ -164,6 +175,31 @@ def _run(args, cfg):
                     "outbound_messages_sent": packet["outbound_messages_sent"],
                     "decisions": [e["decision"] for e in packet["entries"]], "period_warnings": warnings,
                     "ext_corpus_satisfied": packet["corpus_gate"]["ext_corpus_satisfied"]}
+        if args.command == "prepare":
+            from .aggregator_contract import load_export
+            from .prepare import prepare_packet
+            from .templates import RequesterProfile, load_template
+            from datetime import date
+            if args.directory_source:
+                found = directory.discover(directory.load_source(args.directory_source),
+                                           directory.fixture_fetcher(args.directory_source))
+                directory.persist(ledger, found)
+            period, warnings = _selected_period(args)
+            today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
+            as_of = args.as_of or datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
+                "+00:00", "Z")
+            manifest, folder = prepare_packet(
+                ledger, cfg, period=period, warnings=warnings, export=load_export(args.coverage),
+                profile=RequesterProfile.from_file(args.profile), template=load_template(), output_dir=args.out,
+                as_of=as_of, today=today, agencies=args.agency, components=args.component)
+            entries = manifest["entries"]
+            return {"command": "prepare", "mode": cfg.mode, "status": "review_packet_written",
+                    "packet": str(folder / "review-packet.md"), "manifest": str(folder / "prepare-manifest.json"),
+                    "manifest_sha256": manifest["manifest_sha256"],
+                    "period": [manifest["period"]["start"], manifest["period"]["end"]],
+                    "period_warnings": warnings, "drafts": sum(e["included"] for e in entries),
+                    "excluded": sum(not e["included"] for e in entries),
+                    "outbound_messages_sent": 0, "live_dispatch_authorized": False}
         if args.command == "status":
             from .operations import health_report
             manifest = json.loads(open(args.backup_manifest, encoding="utf-8").read()) if args.backup_manifest else None
