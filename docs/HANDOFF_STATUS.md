@@ -2,6 +2,13 @@
 
 Documentation baseline: **2026-10-11**. Source/PR verification: **2026-10-11T20:39:09.617Z**. This is a dated evidence ledger, not a live dispatch-status feed.
 
+## Update — 2026-11-16T02:05Z: custom periods and the `prepare` packet
+
+- #22 (SFL-03, contributing): any past date range via `--start/--end` or `--last-days N` (N complete days ending yesterday), in addition to `--calendar-year`/`--fiscal-year`. End dates after today, inverted ranges and pre-FOIA starts are rejected. Ranges ending within 30 days get a warning that agencies may not have logged or released recent entries yet. `draft` takes `--component` plus a period option. `--select` and annual behaviour are unchanged.
+- #23 (SFL-06, contributing): `foia-requests prepare` writes one readable `review-packet.md` (plus a hashed `prepare-manifest.json`) for a period across all directory components, or those picked with `--agency`/`--component`. Each entry gives the route, why it is included or excluded, the missing inputs and the exact draft text. It is a preview: no ledger request writes, no sender, zero outbound messages. CI runs it from the installed wheel.
+- [OWNER_SENDING_CHECKLIST.md](OWNER_SENDING_CHECKLIST.md) lists what the owner must provide or approve before sending can be enabled: identity, legal review, routes, transport and its variables, rate limits, fee ceiling, the engineering change still needed, and the command sequence. `scripts/validate_plan.py` now checks the checklist is present, complete and linked.
+- Tests: **131** product tests pass. Sending is still disabled. Nothing was sent.
+
 ## Implementation status — 2026-11-15T19:20Z (supersedes the older "next unit" lines below)
 
 Repository: `Justice-For-All-Movement/Send_FOIA_Log_Requests` (transferred from `neophilism`; the registry identity was updated in #7). Every PR below passed `offline-foundation`, `source-integrity` and `pr-registry-contract` on its exact head before merge. **No request, e-mail, portal submission or fee was sent or incurred. No live transport exists.**
@@ -10,10 +17,10 @@ Repository: `Justice-For-All-Movement/Send_FOIA_Log_Requests` (transferred from 
 |---|---|---|
 | SFL-01 | #5 | Complete. |
 | SFL-02 | #9, #16 | Complete: fixture directory discovery, plus import of the FC-13 catalog agency/office census (`directory --catalog`). Census-only components are `unknown` with no routes and a `verify_contact_routes` action, because FC-13/1 carries no contacts. A live official-directory adapter still needs endpoint/schema verification. |
-| SFL-03 | #10 (#16 contributing) | Complete over the coverage contract. FC-13/1 has no log-coverage export, so that dataset is now the consumer proposal `sfl-log-coverage-proposal-1`; EXT-CORPUS stays closed. |
+| SFL-03 | #10 (#16, #22 contributing) | Complete over the coverage contract; #22 adds custom date ranges. FC-13/1 has no log-coverage export, so that dataset is now the consumer proposal `sfl-log-coverage-proposal-1`; EXT-CORPUS stays closed. |
 | SFL-04 | #8 | Complete; the template stays `engineering_draft_pending_legal_review`. |
 | SFL-05 | #7 | Complete. |
-| SFL-06 | #11 | Complete. |
+| SFL-06 | #11 (#23 contributing) | Complete; #23 adds the full-scope `prepare` preview packet. |
 | SFL-07 | #12 | Complete. |
 | SFL-08 | #13 (contributing) | Worker, fake provider and rate limits; real adapters need EXT-DISPATCH. |
 | SFL-09 | #14 | Complete. |

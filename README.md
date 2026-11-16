@@ -16,4 +16,14 @@ python scripts/check_foundation.py
 # .github/workflows/offline-foundation.yml
 ```
 
-The installed CLI is `foia-requests`. `directory`, `draft` (bounded dry-run review packet) and `review` are implemented over local fixtures; `dispatch` fails closed; other families report not implemented. The library adds the request ledger, templates, coverage analysis against a versioned Aggregator export-fixture contract, exact-batch authorization/outbox and a fake-only dispatch worker. See [handoff status](docs/HANDOFF_STATUS.md). `registry/roadmap.json` redirects to `registry/prs.json`; maintain work IDs, dependencies and real PR mappings there rather than inventing totals from observed PR numbers.
+The installed CLI is `foia-requests`. `directory`, `draft` (bounded dry-run review packet), `prepare` (one readable Markdown review packet for a date range across all or filtered directory agencies; sends nothing) and `review` are implemented over local fixtures; `dispatch` fails closed; other families report not implemented. The library adds the request ledger, templates, coverage analysis against a versioned Aggregator export-fixture contract, exact-batch authorization/outbox and a fake-only dispatch worker. See [handoff status](docs/HANDOFF_STATUS.md). `registry/roadmap.json` redirects to `registry/prs.json`; maintain work IDs, dependencies and real PR mappings there rather than inventing totals from observed PR numbers.
+
+Periods can be annual (`--calendar-year`, `--fiscal-year`) or any past date range (`--start/--end`, `--last-days N`). Preview the last week for every directory agency:
+
+```bash
+foia-requests prepare --ledger <private-ledger> --directory-source fixtures/directory \
+  --coverage fixtures/aggregator_export --profile fixtures/profiles/synthetic-requester.json \
+  --last-days 7 --out <private-folder>   # writes review-packet.md
+```
+
+Sending stays disabled. Before it can be enabled, the owner needs to provide and approve the items in the [owner sending checklist](docs/OWNER_SENDING_CHECKLIST.md).
