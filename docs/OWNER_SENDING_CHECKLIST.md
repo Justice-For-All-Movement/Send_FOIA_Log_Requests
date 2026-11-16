@@ -54,7 +54,14 @@ If the reviewer changed the wording, put the new `subject`/`body`/`requested_fie
 
 ## 3. Official routes and scope (owner approves)
 
-Load the official FOIA.gov agency directory (public contact data published by FOIA.gov; refreshed by the "FOIA.gov directory snapshot" workflow):
+Get the official FOIA.gov agency directory (public contact data published by FOIA.gov) into the repository once:
+
+1. Sign up for a free key at https://api.data.gov/signup/ (the shared `DEMO_KEY` runs out after about 10 pages).
+2. Add it as a repository secret: GitHub, Settings, Secrets and variables, Actions, New repository secret, name `FOIA_GOV_API_KEY`.
+3. Actions, "FOIA.gov directory snapshot", Run workflow. It fetches, converts, validates and pushes the branch `automation/foia-gov-directory`.
+4. Open a PR from that branch (https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/compare/main...automation/foia-gov-directory) and merge it when its checks pass. Then `git pull`.
+
+Load it into your ledger:
 
 ```bash
 foia-requests directory --source data/foia_gov_directory --ledger ~/foia/ledger.sqlite

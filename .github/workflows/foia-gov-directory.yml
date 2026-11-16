@@ -1,17 +1,18 @@
 name: FOIA.gov directory snapshot
 # Fetches the official FOIA.gov agency components list on a runner (the
 # development sandbox cannot reach foia.gov), converts it to the directory
-# snapshot format and validates it offline. The result is uploaded as an
-# artifact; a maintainer commits it to data/foia_gov_directory in a reviewed
-# PR. Nothing here sends anything to an agency.
+# snapshot format, validates it offline and pushes it to the branch
+# automation/foia-gov-directory. Open a PR from that branch to review and
+# merge it (CI runs on the PR). Raw pages are always uploaded as an artifact.
+# Nothing here sends anything to an agency.
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   snapshot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -27,10 +28,21 @@ jobs:
         run: |
           python -m foia_requests directory --source data/foia_gov_directory --ledger "$RUNNER_TEMP/state/ledger.sqlite" > "$RUNNER_TEMP/directory.json"
           python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'directory.json'))); print({k: r[k] for k in ('components','complete','stored')}); assert r['complete'] and r['components'] > 50"
+          python -m unittest tests.test_foia_gov -v
+      - name: Push snapshot branch
+        run: |
+          git config user.name "foia-directory-snapshot[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B automation/foia-gov-directory
+          git add data/foia_gov_directory
+          git commit -m "Data: FOIA.gov agency components snapshot $(date -u +%Y-%m-%d)" -m "Public contact data published by FOIA.gov (api.foia.gov), converted by foia_requests.foia_gov. Run ${GITHUB_RUN_ID}."
+          git push --force origin automation/foia-gov-directory
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: foia-gov-directory
           path: |
             data/foia_gov_directory
             ${{ runner.temp }}/raw
+          if-no-files-found: warn
           retention-days: 14
