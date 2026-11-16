@@ -33,6 +33,28 @@ def _period(text):
                                      "COMPONENT:custom:YYYY-MM-DD:YYYY-MM-DD")
 
 
+def _add_period_args(command):
+    group = command.add_argument_group("period (choose one; custom ranges are validated against --today)")
+    group.add_argument("--start", help="Custom range start, YYYY-MM-DD (with --end)")
+    group.add_argument("--end", help="Custom range end, YYYY-MM-DD, inclusive; must not be after today")
+    group.add_argument("--last-days", type=int, help="The N complete days ending yesterday (7 = the last week)")
+    group.add_argument("--calendar-year", type=int, help="Calendar year YYYY")
+    group.add_argument("--fiscal-year", type=int, help="US federal fiscal year YYYY (Oct 1 - Sep 30)")
+    command.add_argument("--today", help="Reference date YYYY-MM-DD for validation (default: today, UTC)")
+
+
+def _period_args_given(args):
+    return any(getattr(args, k) is not None for k in ("start", "end", "last_days", "calendar_year", "fiscal_year"))
+
+
+def _selected_period(args):
+    from datetime import date
+    from .periods import select_period
+    today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
+    return select_period(start=args.start, end=args.end, last=args.last_days, calendar=args.calendar_year,
+                         fiscal=args.fiscal_year, today=today)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="foia-requests")
     parser.add_argument("--config", help="JSON configuration path")
@@ -51,8 +73,11 @@ def build_parser():
             command.add_argument("--directory-source", help="Discover and persist this fixture directory first")
             command.add_argument("--coverage", required=True, help="Aggregator log_coverage export folder")
             command.add_argument("--profile", required=True, help="Requester profile JSON")
-            command.add_argument("--select", required=True, action="append", type=_period,
+            command.add_argument("--select", action="append", type=_period,
                                  help="COMPONENT:calendar:YYYY | COMPONENT:fiscal:YYYY | COMPONENT:custom:START:END")
+            command.add_argument("--component", action="append",
+                                 help="Component ID for the period chosen with --start/--end, --last-days, ...")
+            _add_period_args(command)
             command.add_argument("--out", required=True, help="Private packet output folder")
             command.add_argument("--as-of", help="UTC timestamp recorded in the packet (default: now)")
         elif name == "status":
@@ -122,14 +147,22 @@ def _run(args, cfg):
                 directory.persist(ledger, found)
             as_of = args.as_of or datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
                 "+00:00", "Z")
+            selection, warnings = list(args.select or []), []
+            if args.component or _period_args_given(args):
+                if not args.component or not _period_args_given(args):
+                    raise ValueError("--component requires a period option, and a period option requires --component")
+                period, warnings = _selected_period(args)
+                selection += [(c, period) for c in args.component]
+            if not selection:
+                raise ValueError("select component-periods with --select or --component plus a period option")
             packet, folder = run_dry_run(
-                ledger, cfg, selection=args.select, export=load_export(args.coverage),
+                ledger, cfg, selection=selection, export=load_export(args.coverage),
                 profile=RequesterProfile.from_file(args.profile), template=load_template(),
                 output_dir=args.out, as_of=as_of)
             return {"command": "draft", "mode": cfg.mode, "status": "dry_run_packet_written",
                     "packet": str(folder / "packet.json"), "packet_sha256": packet["packet_sha256"],
                     "outbound_messages_sent": packet["outbound_messages_sent"],
-                    "decisions": [e["decision"] for e in packet["entries"]],
+                    "decisions": [e["decision"] for e in packet["entries"]], "period_warnings": warnings,
                     "ext_corpus_satisfied": packet["corpus_gate"]["ext_corpus_satisfied"]}
         if args.command == "status":
             from .operations import health_report
