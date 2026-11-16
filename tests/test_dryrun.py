@@ -170,9 +170,13 @@ class TransportConfigTests(unittest.TestCase):
             sender_from_env({"FOIA_TRANSPORT_PROVIDER": "fake"})
         self.assertIsInstance(sender_from_env({"FOIA_TRANSPORT_PROVIDER": "fake",
                                                "FOIA_TRANSPORT_FAKE_ALLOWED": "1"}), FakeSender)
-        for provider in ("smtp", "portal", "sendgrid"):
+        for provider in ("portal", "sendgrid"):
             with self.subTest(provider=provider), self.assertRaises(TransportNotImplemented):
                 sender_from_env({"FOIA_TRANSPORT_PROVIDER": provider})
+        # Live transports are never handed out directly; only the sending gate builds them.
+        for provider in ("smtp", "manual"):
+            with self.subTest(provider=provider), self.assertRaisesRegex(TransportDisabled, "sending gate"):
+                sender_from_env({"FOIA_TRANSPORT_PROVIDER": provider, "FOIA_SMTP_HOST": "smtp.example.invalid"})
 
 
 if __name__ == "__main__":

@@ -1,22 +1,30 @@
 # Owner sending checklist
 
-Sending is **disabled**. `Config` rejects `transport_enabled: true`, `dispatch` always exits non-zero, and no real transport adapter exists. Nothing in this checklist turns sending on. It lists what the owner must provide or approve before an engineering change may enable it, and the commands to run afterwards.
+Sending is **disabled** until you do the steps below. The complete sending path is built and tested (SMTP e-mail, manual portal filing, `approve`, `queue`, `send`, emergency stop, receipts), but `foia-requests send` only transmits when **all five** of these hold at once:
 
-You can already do this without approving anything: prepare a review packet for any date range (it sends nothing).
+1. a requester profile that is `verified: true`, `synthetic: false`, and stored **outside** the repository;
+2. an approved template revision (`status: approved`) whose hash is pinned in `foia_requests/templates/LOCK.json`, and a batch authorized with that exact revision;
+3. a configured transport: `FOIA_TRANSPORT_PROVIDER=smtp` with every `FOIA_SMTP_*` value set (STARTTLS is enforced), or `FOIA_TRANSPORT_PROVIDER=manual`;
+4. `FOIA_SENDING_ENABLED=true` in the environment of that command;
+5. the per-batch phrase typed exactly: `--confirm "SEND <n> <auth-id>"`.
+
+Without `--confirm`, `send` is a dry run: it lists the messages and every unmet condition, and sends nothing. None of these conditions is met in the repository, CI or tests; tests use only a local fake SMTP server on 127.0.0.1 and fake `.gov.example` addresses.
+
+Everything below is done once on your own computer, from a checkout of this repository. Commands assume `~/foia` as your private folder.
 
 ```bash
-python -m pip install .
-foia-requests directory --source <official-directory-folder> --ledger ~/foia/ledger.sqlite
-foia-requests prepare --ledger ~/foia/ledger.sqlite --coverage <coverage-export-folder> \
-  --profile ~/foia/requester.json --last-days 7 --out ~/foia/packets/last-week
-# then read ~/foia/packets/last-week/review-packet.md
+git clone https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests.git && cd Send_FOIA_Log_Requests
+python3 -m pip install -e .
+mkdir -p -m 700 ~/foia
 ```
-
-Use `--start YYYY-MM-DD --end YYYY-MM-DD` for an exact range, `--calendar-year`/`--fiscal-year` for annual periods, and `--agency doj` (repeatable) or `--component fed:doj/oip` to narrow the agency set. `--last-days 7` means the seven complete days ending yesterday. End dates after today are rejected. Ranges ending in the last 30 days get a warning, because agencies may not have logged every request yet or may be slow to release recent entries. With the repository fixtures (`fixtures/directory`, `fixtures/aggregator_export`, `fixtures/profiles/synthetic-requester.json`) the packet is synthetic test output only.
 
 ## 1. Requester identity (owner provides)
 
-Create a private profile file **outside the repository** (for example `~/foia/requester.json`, mode 0600). Pass it with `--profile`. It is printed in each request's signature block. Never commit it or paste it into chat, issues or PRs.
+```bash
+cp fixtures/profiles/synthetic-requester.json ~/foia/requester.json && chmod 600 ~/foia/requester.json
+```
+
+Edit `~/foia/requester.json`. It is printed in each request's signature block. Never commit it or paste it into chat, issues or PRs (`.gitignore` already excludes `requester*.json`).
 
 | Field | What to put |
 |---|---|
@@ -24,74 +32,97 @@ Create a private profile file **outside the repository** (for example `~/foia/re
 | `requester_principal` | Stable dedupe identity, e.g. `requester:owner`. Changing it creates new duplicate-check keys. |
 | `name` | Name to sign requests with |
 | `organization` | Organization, or `null` |
-| `reply_email` / `reply_postal` | At least one reply route agencies can use |
-| `verified` | `true` only after you have confirmed the details above |
-| `synthetic` | `false` (the fixture is `true` and can never be authorized) |
-| `fee_policy` | See section 5 |
+| `reply_email` / `reply_postal` | At least one reply route. `reply_email` becomes the `Reply-To` of every e-mail. |
+| `verified` | `true` once the details above are correct |
+| `synthetic` | `false` |
+| `fee_policy` | `{"max_authorized_usd": 0, "fee_waiver_basis": null}` unless you choose otherwise (section 5) |
 | `delivery_format` | e.g. `CSV or spreadsheet preferred; PDF acceptable` |
 
 ## 2. Legal review of the template (owner approves)
 
-The only template, `annual_foia_log_request@1` (`foia_requests/templates/`), has status `engineering_draft_pending_legal_review`. Every draft lists "approved template" as a missing input until it is approved. It works for any date range: it asks for the log of requests received from the start date through the end date. A reviewer should check:
+The draft template `annual_foia_log_request@1` (`foia_requests/templates/annual_foia_log_request.v1.json`) has status `engineering_draft_pending_legal_review`. Have it reviewed for: the 5 U.S.C. 552 citation and wording; the "existing log, not new records or annual report" language and the field list; the exclusion of other requesters' personal details; the fee paragraph; and wording for short or very recent ranges.
 
-- the 5 U.S.C. 552 citation and wording, against current official sources;
-- the "existing log, not new records or annual report" language and the requested field list;
-- the exclusion of other requesters' personal details;
-- the fee paragraph, and any fee waiver wording;
-- whether short or very recent ranges need extra wording (for example, asking for entries as currently maintained).
+Then record the approval. It writes revision 2 with `status: approved`, the reviewer **role** (not a personal name) and date, and pins its hash in `LOCK.json`:
 
-Approval is a PR that adds `annual_foia_log_request.v2.json` with `"status": "approved"`, the reviewer and review date in `authority_note`, and its hash in `LOCK.json`. Revision 1 is not edited in place.
+```bash
+foia-requests approve template          # prints the exact confirmation phrase; writes nothing
+foia-requests approve template --reviewer-role "owner's counsel" --reviewed-on 2026-11-20 \
+  --confirm "I CONFIRM LEGAL REVIEW OF annual_foia_log_request@1 0ff85013bb25"
+```
+
+If the reviewer changed the wording, put the new `subject`/`body`/`requested_fields` in a JSON file and add `--source edited.json`. You may commit the two changed files (`annual_foia_log_request.v2.json`, `LOCK.json`) in a PR, or keep them local; both work. To keep them outside the checkout instead, copy `foia_requests/templates` to a private folder, set `FOIA_TEMPLATE_DIR` to it, and approve there.
 
 ## 3. Official routes and scope (owner approves)
 
-- Load the directory from a verified official source. The repository fixtures use fake `.gov.example` addresses. Only `verified` email/portal routes can be authorized; anything else stays manual.
-- Choose the agency set and period, then read the `prepare` packet. Check each destination, the dates and the "why included" lines.
-- Large campaigns also need the FOIA Aggregator public-log coverage review (EXT-CORPUS), so agencies are not asked for logs that are already published.
+Load the official FOIA.gov agency directory (public contact data published by FOIA.gov; refreshed by the "FOIA.gov directory snapshot" workflow):
 
-## 4. Transport and its environment variables (owner chooses; engineering implements)
+```bash
+foia-requests directory --source data/foia_gov_directory --ledger ~/foia/ledger.sqlite
+foia-requests operator --ledger ~/foia/ledger.sqlite --id owner --role all
+```
 
-| Choice | What is needed |
+Only routes on official `.gov`/`.mil` hosts listed by FOIA.gov are `verified`; others are never sent to. Preview any period across all or some agencies (sends nothing):
+
+```bash
+foia-requests prepare --ledger ~/foia/ledger.sqlite --coverage fixtures/empty_coverage_export \
+  --profile ~/foia/requester.json --last-days 7 --agency doj --out ~/foia/packets/preview
+```
+
+`fixtures/empty_coverage_export` means "no public-log coverage data yet". Large campaigns should wait for the FOIA Aggregator public-log coverage review (EXT-CORPUS), so agencies are not asked for logs they already publish.
+
+## 4. Transport and its environment variables (owner chooses and supplies)
+
+| Choice | Set in your shell (never in the repository) |
 |---|---|
-| E-mail (SMTP) | A provider account for the reply address. Proposed variables: `FOIA_SMTP_HOST`, `FOIA_SMTP_USERNAME`, `FOIA_SMTP_PASSWORD`. |
-| Agency portal API | Only where an agency publishes one. Proposed variable: `FOIA_PORTAL_API_TOKEN`. CAPTCHA or login-only portals stay manual. |
-| Manual | Use the packet text and file each request yourself. Record receipts with the receipt tools. No credentials needed. |
+| E-mail (SMTP) | `FOIA_TRANSPORT_PROVIDER=smtp`, `FOIA_SMTP_HOST`, `FOIA_SMTP_PORT` (default 587; must offer STARTTLS; 465 is refused), `FOIA_SMTP_USERNAME`, `FOIA_SMTP_PASSWORD` (an app password), `FOIA_SMTP_FROM` (the address agencies see; usually your `reply_email`). Optional: `FOIA_SMTP_TIMEOUT`. |
+| Manual (portal-only agencies) | `FOIA_TRANSPORT_PROVIDER=manual`. `send` writes ready-to-paste text, a PDF and a checklist; you file each request yourself. No credentials. |
 
-`FOIA_TRANSPORT_PROVIDER` selects the transport. Today it accepts only `disabled` (default) and `fake` (tests only, with `FOIA_TRANSPORT_FAKE_ALLOWED=1`). The SMTP and portal variable names above are proposals: **no code reads them yet**. Keep credentials in the host's secret store, never in the repository.
+```bash
+export FOIA_TRANSPORT_PROVIDER=smtp FOIA_SMTP_HOST=smtp.your-provider.example FOIA_SMTP_PORT=587 \
+  FOIA_SMTP_USERNAME=you@your-domain.example FOIA_SMTP_FROM=you@your-domain.example
+read -rs FOIA_SMTP_PASSWORD && export FOIA_SMTP_PASSWORD
+```
+
+A batch is authorized for one transport. `draft` picks a verified e-mail route when one exists, otherwise a verified portal; authorize e-mail drafts with `--transport smtp` and portal drafts with `--transport manual` (`approve batch` tells you if a request needs the other one).
 
 ## 5. Rate limits and fee ceiling (owner approves numbers)
 
-- **Rate limits:** the worker defaults are 2 messages per destination host per hour and 10 per hour overall (`dispatch.RateLimits`). Each authorization also sets `max_messages` for its batch. Choose the numbers you approve. Lower is safer.
-- **Fee ceiling:** `fee_policy.max_authorized_usd` in the profile is a whole-dollar cap. `0` (the default) means the request says you do not agree to pay fees and asks for an estimate first. Set `fee_waiver_basis` only if you have a truthful basis; otherwise leave it `null`. The software never pays fees.
+- **Rate limits:** `send` defaults to 2 messages per destination host per hour, 10 per hour overall, and 30 seconds between messages (`--per-host-per-hour`, `--global-per-hour`, `--min-interval-seconds`; capped at 20 and 60). `--max N` sends at most N in one run.
+- **Fee ceiling:** `fee_policy.max_authorized_usd` is a whole-dollar cap; `0` says you do not agree to pay fees and asks for an estimate first. Set `fee_waiver_basis` only if you have a truthful basis. The software never pays fees.
 
-## 6. Engineering change needed before any send (not done)
+## 6. What the software guarantees (no action needed)
 
-After items 1–5 are approved, someone must make a reviewed PR that:
+- Each request is sent at most once: one live outbox intent per request; submitted, failed and unknown attempts are never re-sent automatically. Running `send` again on a finished batch reports `nothing_pending`.
+- If a connection drops after the message was handed to the server, the request becomes `submission_unknown` and the batch is blocked until you reconcile it: `foia-requests receipt reconcile --ledger ~/foia/ledger.sqlite --attempt <id> --operator owner --outcome submitted --source provider_sent_folder --reference "<Message-ID>"` (check your mail provider's Sent folder first).
+- An authentication failure sets the emergency stop. Content, route, profile or template changes after approval revoke the batch.
+- Every accepted e-mail stores a receipt in the ledger (SMTP reply, Message-ID, SHA-256 of the exact message). Provider acceptance is not an agency acknowledgment.
 
-1. implements the chosen adapter behind `FOIA_TRANSPORT_PROVIDER`, tested against the fake provider only;
-2. allows `transport_enabled: true` only together with that adapter and its credentials;
-3. adds CLI commands for authorization and dispatch (today these are library functions only: `authorization.authorize_batch`, `queue_authorized`, `dispatch.run_once`).
-
-CI and tests must never contact an agency.
-
-## 7. Command sequence after approval and that PR
-
-Shown for planning. Steps 4–6 do not exist yet.
+## 7. Command sequence after approval
 
 ```bash
-foia-requests directory --source <verified-official-directory> --ledger ~/foia/ledger.sqlite
-foia-requests prepare --ledger ~/foia/ledger.sqlite --coverage <coverage-export> \
-  --profile ~/foia/requester.json --start 2026-11-09 --end 2026-11-15 --out ~/foia/packets/2026-11-09
-# 1. Read review-packet.md and choose up to 3 components for the first batch.
-foia-requests draft --ledger ~/foia/ledger.sqlite \
-  --coverage <coverage-export> --profile ~/foia/requester.json \
-  --component fed:doj/oip --start 2026-11-09 --end 2026-11-15 --out ~/foia/batches
-# 2. Read the batch packet (path printed as "packet"), then record the review (this does not authorize sending):
-foia-requests review --ledger ~/foia/ledger.sqlite --packet <packet.json> --actor owner --note "reviewed"
-# 3. Back up first (library: operations.verified_backup), then check:
-foia-requests status --ledger ~/foia/ledger.sqlite
-# 4. (future) authorize the exact batch: reference, expiry, max_messages, transport
-# 5. (future) queue it, with FOIA_TRANSPORT_PROVIDER=<adapter> and its credentials in the environment
-# 6. (future) run the dispatch worker, then record receipts and agency acknowledgments
+L=~/foia/ledger.sqlite
+# a. Draft and review up to 3 requests (repeat for more batches).
+foia-requests draft --ledger $L --coverage fixtures/empty_coverage_export --profile ~/foia/requester.json \
+  --component fed:doj/oip --start 2026-01-01 --end 2026-10-31 --out ~/foia/batches
+foia-requests review --ledger $L --packet <packet.json printed above> --actor owner --note "reviewed"
+# b. Authorize exactly that batch (sends nothing), then queue it.
+foia-requests approve batch --ledger $L --operator owner --profile ~/foia/requester.json \
+  --transport smtp --reference OWNER-2026-11-20-1 --packet <packet.json>
+foia-requests queue --ledger $L --operator owner --auth-id <auth-id printed above>
+# c. Dry run: read the list and the blockers. Then send with the printed phrase.
+foia-requests send --ledger $L --auth-id <auth-id> --profile ~/foia/requester.json
+FOIA_SENDING_ENABLED=true foia-requests send --ledger $L --auth-id <auth-id> \
+  --profile ~/foia/requester.json --confirm "SEND <n> <auth-id>"
+# Manual (portal) batches: same steps with --transport manual, FOIA_TRANSPORT_PROVIDER=manual and
+#   --manual-out ~/foia/manual; then follow CHECKLIST-<auth-id>.md and record each filing:
+foia-requests receipt manual --ledger $L --attempt <attempt-id> --operator owner \
+  --confirmation <portal-number> --evidence <saved-confirmation.pdf>
+# d. When an agency acknowledges a request:
+foia-requests receipt ack --ledger $L --request <request-id> --operator owner \
+  --tracking-number <agency-number> --evidence <saved-email.eml>
+foia-requests status --ledger $L
 ```
 
-To stop at any time, set the dispatch stop (`authorization.set_stop`). Never resend a request whose outcome is `submission_unknown`; reconcile it first.
+**Emergency stop**, at any time (takes effect before the next message): `foia-requests stop --ledger ~/foia/ledger.sqlite --operator owner --reason "..."`. Undo with `foia-requests resume` (same arguments). Unsetting `FOIA_SENDING_ENABLED` also halts a running batch before its next message.
+
+Back up the ledger before and after each batch (`operations.verified_backup`), and keep `~/foia` private.

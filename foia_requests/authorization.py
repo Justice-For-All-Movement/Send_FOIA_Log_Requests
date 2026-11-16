@@ -29,6 +29,9 @@ from .templates import render
 from .transport import OutboundMessage
 
 ROLES = ("reviewer", "authorizer", "dispatcher", "safety")
+TRANSPORTS = ("smtp", "manual", "fake")
+# Route kinds each transport can deliver to. Manual filing covers portals and e-mail.
+TRANSPORT_ROUTE_KINDS = {"smtp": ("email",), "manual": ("portal", "email"), "fake": ("email", "portal")}
 STOP_KEY = "dispatch_stop"
 ATTEMPT_NAMESPACE = uuid.UUID("0b6f4f8e-2f35-5d2c-8f3e-7c1d9a6b4e21")
 
@@ -97,6 +100,8 @@ def authorize_batch(ledger, *, request_ids, authorizer, reference, expires_at, p
         raise AuthorizationError("batch must contain 1..max_messages requests")
     if profile.synthetic or not profile.verified:
         raise AuthorizationError("a verified, non-synthetic requester profile is required")
+    if transport not in TRANSPORTS:
+        raise AuthorizationError(f"transport must be one of {', '.join(TRANSPORTS)}")
     items = []
     for rid in ids:
         request = ledger.get(rid)
@@ -105,9 +110,15 @@ def authorize_batch(ledger, *, request_ids, authorizer, reference, expires_at, p
         if request["requester"] != profile.requester_principal:
             raise AuthorizationError(f"{rid} belongs to a different requester")
         revision = ledger.latest_revision(rid)
+        if (revision["template_id"], revision["template_revision"]) != (template.template_id, template.revision):
+            raise AuthorizationError(f"{rid} was drafted with {revision['template_id']}@{revision['template_revision']},"
+                                     f" not {template.key}; re-draft and review it with the approved template")
         route = _current_route(ledger, revision["recipient_route"]) if revision["recipient_route"] else None
         if route is None or route["state"] != "verified" or route["superseded_at"] is not None:
             raise AuthorizationError(f"{rid} has no currently verified route")
+        if route["kind"] not in TRANSPORT_ROUTE_KINDS[transport]:
+            raise AuthorizationError(f"{rid} uses a {route['kind']} route, which the {transport} transport cannot "
+                                     f"deliver; authorize it in a separate batch with --transport manual")
         component = directory.component_record(ledger, request["component_id"])
         scope = RequestScope(request["requester"], request["jurisdiction"], request["component_id"],
                              request["record_class"], request["period_start"], request["period_end"],
@@ -225,14 +236,15 @@ def queue_authorized(ledger, auth_id, operator_id, now=None):
         return queued
 
 
-def claim_next(ledger, owner, now, lease_seconds=120):
-    """Lease the next due queued intent (or an expired pre-submission lease)."""
+def claim_next(ledger, owner, now, lease_seconds=120, auth_id=None):
+    """Lease the next due queued intent (or an expired pre-submission lease), optionally of one batch."""
     with ledger.transaction() as conn:
         if stopped(ledger):
             return None
         rows = conn.execute(
             "SELECT * FROM outbox WHERE (state='queued' OR (state='leased' AND lease_expires<=?)) "
-            "AND (not_before IS NULL OR not_before<=?) ORDER BY created_at, attempt_id", (now, now)).fetchall()
+            "AND (not_before IS NULL OR not_before<=?) AND (? IS NULL OR auth_id=?) ORDER BY created_at, attempt_id",
+            (now, now, auth_id, auth_id)).fetchall()
         for row in rows:
             auth = _authorization(ledger, row["auth_id"])
             problems = _problems(ledger, auth, now)

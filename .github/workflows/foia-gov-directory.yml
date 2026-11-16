@@ -1,0 +1,36 @@
+name: FOIA.gov directory snapshot
+# Fetches the official FOIA.gov agency components list on a runner (the
+# development sandbox cannot reach foia.gov), converts it to the directory
+# snapshot format and validates it offline. The result is uploaded as an
+# artifact; a maintainer commits it to data/foia_gov_directory in a reviewed
+# PR. Nothing here sends anything to an agency.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Fetch FOIA.gov agency components
+        env:
+          FOIA_GOV_API_KEY: ${{ secrets.FOIA_GOV_API_KEY }}
+        run: python scripts/fetch_foia_gov_directory.py --out "$RUNNER_TEMP/raw"
+      - name: Convert to directory snapshot
+        run: python -m foia_requests.foia_gov --raw "$RUNNER_TEMP/raw" --out data/foia_gov_directory
+      - name: Validate snapshot offline
+        run: |
+          python -m foia_requests directory --source data/foia_gov_directory --ledger "$RUNNER_TEMP/state/ledger.sqlite" > "$RUNNER_TEMP/directory.json"
+          python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'directory.json'))); print({k: r[k] for k in ('components','complete','stored')}); assert r['complete'] and r['components'] > 50"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foia-gov-directory
+          path: |
+            data/foia_gov_directory
+            ${{ runner.temp }}/raw
+          retention-days: 14

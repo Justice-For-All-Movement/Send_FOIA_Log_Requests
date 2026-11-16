@@ -1,9 +1,12 @@
-"""Offline CLI; all outbound sends are forbidden.
+"""foia-requests command line.
 
-Implemented: ``directory`` (fixture discovery into the ledger), ``draft``
-(bounded dry-run review packet), ``prepare`` (read-only Markdown review packet
-for a date range across many agencies), ``review`` (record a verified packet review).
-``dispatch`` always fails closed. Other families report not_implemented.
+Preparation (never sends): ``directory``, ``draft``, ``prepare``, ``review``,
+``status``.
+Owner-gated sending path: ``operator`` (grant roles), ``approve template``,
+``approve batch``, ``queue``, ``send`` (dry run unless every gate in
+``sending.py`` holds and the typed confirmation matches), ``stop``/``resume``
+(emergency stop), ``receipt manual|ack|reconcile``.
+``dispatch`` is retired and always fails closed; use ``send``.
 """
 import argparse
 import json
@@ -12,9 +15,11 @@ from datetime import datetime, timezone
 
 from .config import Config, ConfigurationError
 
-COMMANDS = ("directory", "campaign", "draft", "prepare", "review", "dispatch", "receipt", "response", "continue", "export",
-            "status")
-IMPLEMENTED = ("directory", "draft", "prepare", "review", "status")
+COMMANDS = ("directory", "campaign", "draft", "prepare", "review", "operator", "approve", "queue", "send", "stop",
+            "resume", "dispatch", "receipt", "response", "continue", "export", "status")
+IMPLEMENTED = ("directory", "draft", "prepare", "review", "status", "operator", "approve", "queue", "send", "stop",
+               "resume", "receipt")
+EXIT_BLOCKED = 3
 
 
 def _period(text):
@@ -99,6 +104,76 @@ def build_parser():
             command.add_argument("--packet", required=True)
             command.add_argument("--actor", required=True)
             command.add_argument("--note", required=True)
+        elif name == "operator":
+            command.add_argument("--ledger", required=True)
+            command.add_argument("--id", required=True, help="Operator label, e.g. owner")
+            command.add_argument("--role", required=True, choices=("reviewer", "authorizer", "dispatcher", "safety",
+                                                                   "all"))
+            command.add_argument("--by", default="owner", help="Who granted the role (recorded)")
+        elif name == "approve":
+            kinds = command.add_subparsers(dest="approve_kind", required=True)
+            tpl = kinds.add_parser("template", help="Record legal approval as a new locked template revision")
+            tpl.add_argument("--template-dir", help="Template folder (default: FOIA_TEMPLATE_DIR or packaged)")
+            tpl.add_argument("--reviewer-role", help="Role label of the legal reviewer, e.g. \"owner's counsel\"")
+            tpl.add_argument("--reviewed-on", help="Review date YYYY-MM-DD")
+            tpl.add_argument("--scope", default="5 U.S.C. 552 citation, log wording, privacy and fee paragraphs",
+                             help="What the review covered")
+            tpl.add_argument("--source", help="Optional JSON with reviewer-edited subject/body/requested_fields")
+            tpl.add_argument("--confirm", help="Exact phrase printed when run without --confirm")
+            batch = kinds.add_parser("batch", help="Authorize an exact reviewed batch (does not send)")
+            batch.add_argument("--ledger", required=True)
+            batch.add_argument("--operator", required=True, help="Operator with the authorizer role")
+            batch.add_argument("--profile", required=True, help="Private requester profile JSON")
+            batch.add_argument("--transport", required=True, choices=("smtp", "manual"))
+            batch.add_argument("--reference", required=True, help="Your approval reference, e.g. OWNER-2026-11-16-1")
+            batch.add_argument("--packet", help="Reviewed packet.json from `draft`; authorizes all its drafts")
+            batch.add_argument("--request", action="append", help="Request ID (repeatable) instead of --packet")
+            batch.add_argument("--expires-in-days", type=int, default=7, help="Authorization lifetime (1..30)")
+            batch.add_argument("--max-messages", type=int, help="Cap (default: number of requests)")
+        elif name == "queue":
+            command.add_argument("--ledger", required=True)
+            command.add_argument("--operator", required=True, help="Operator with the dispatcher role")
+            command.add_argument("--auth-id", required=True)
+        elif name == "send":
+            command.add_argument("--ledger", required=True)
+            command.add_argument("--auth-id", required=True)
+            command.add_argument("--profile", required=True, help="Private requester profile JSON")
+            command.add_argument("--operator", default="owner", help="Recorded as the sending worker")
+            command.add_argument("--confirm", help="Typed per-batch phrase 'SEND <n> <auth-id>'; omit for a dry run")
+            command.add_argument("--max", type=int, help="Send at most this many in this run")
+            command.add_argument("--per-host-per-hour", type=int, default=2)
+            command.add_argument("--global-per-hour", type=int, default=10)
+            command.add_argument("--min-interval-seconds", type=float, default=30.0)
+            command.add_argument("--manual-out", help="Private folder for manual-filing copies (manual transport)")
+        elif name in ("stop", "resume"):
+            command.add_argument("--ledger", required=True)
+            command.add_argument("--operator", required=True, help="Operator with the safety role")
+            command.add_argument("--reason", required=True)
+        elif name == "receipt":
+            kinds = command.add_subparsers(dest="receipt_kind", required=True)
+            manual = kinds.add_parser("manual", help="Record the outcome of a manual (portal) filing")
+            manual.add_argument("--ledger", required=True)
+            manual.add_argument("--attempt", required=True)
+            manual.add_argument("--operator", required=True)
+            manual.add_argument("--confirmation", help="Portal confirmation number")
+            manual.add_argument("--evidence", help="Saved confirmation page/e-mail (hashed into the ledger)")
+            manual.add_argument("--tracking-number", help="Agency tracking number, if the portal issued one")
+            manual.add_argument("--failed", action="store_true")
+            manual.add_argument("--reason")
+            ack = kinds.add_parser("ack", help="Record an agency acknowledgment with its tracking number")
+            ack.add_argument("--ledger", required=True)
+            ack.add_argument("--request", required=True)
+            ack.add_argument("--operator", required=True)
+            ack.add_argument("--tracking-number", required=True)
+            ack.add_argument("--evidence", required=True, help="Saved acknowledgment e-mail/letter")
+            ack.add_argument("--source", default="agency_email")
+            rec = kinds.add_parser("reconcile", help="Resolve an unknown send outcome from evidence")
+            rec.add_argument("--ledger", required=True)
+            rec.add_argument("--attempt", required=True)
+            rec.add_argument("--operator", required=True)
+            rec.add_argument("--outcome", required=True, choices=("submitted", "delivery_failed"))
+            rec.add_argument("--source", required=True, help="e.g. provider_sent_folder, agency_receipt")
+            rec.add_argument("--reference", required=True, help="Where the evidence is, e.g. a Message-ID")
     return parser
 
 
@@ -115,7 +190,8 @@ def main(argv=None):
         parser.error(str(exc))
     args = parser.parse_args(argv)
     if args.command == "dispatch":
-        print("Dispatch disabled; no authorized live transport", file=sys.stderr)
+        print("dispatch is disabled (retired; it always fails closed); use `foia-requests send`, a dry run by default",
+              file=sys.stderr)
         return 2
     if args.command is None:
         parser.print_help()
@@ -123,8 +199,13 @@ def main(argv=None):
     if args.command not in IMPLEMENTED:
         print(json.dumps({"command": args.command, "mode": cfg.mode, "status": "not_implemented"}))
         return 0
+    from .sending import SendingBlocked
     try:
         result = _run(args, cfg)
+    except SendingBlocked as exc:
+        print(json.dumps({"command": args.command, "status": "blocked", "blockers": exc.blockers, "sent": 0},
+                         sort_keys=True, indent=2))
+        return EXIT_BLOCKED
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"{args.command} failed: {exc}", file=sys.stderr)
         return 2
@@ -135,7 +216,11 @@ def main(argv=None):
 def _run(args, cfg):
     from .ledger import Ledger
     from . import directory
+    if args.command == "approve" and args.approve_kind == "template":
+        return _approve_template(args)
     with Ledger(args.ledger) as ledger:
+        if args.command in ("operator", "approve", "queue", "send", "stop", "resume", "receipt"):
+            return _sending_command(args, ledger)
         if args.command == "directory" and args.catalog:
             from .aggregator_contract import load_catalog_snapshot
             snapshot = load_catalog_snapshot(args.catalog, expected_fixture=not args.live_catalog)
@@ -151,7 +236,7 @@ def _run(args, cfg):
         if args.command == "draft":
             from .aggregator_contract import load_export
             from .dryrun import run_dry_run
-            from .templates import RequesterProfile, load_template
+            from .templates import RequesterProfile, load_active_template
             if args.directory_source:
                 found = directory.discover(directory.load_source(args.directory_source),
                                            directory.fixture_fetcher(args.directory_source))
@@ -168,7 +253,7 @@ def _run(args, cfg):
                 raise ValueError("select component-periods with --select or --component plus a period option")
             packet, folder = run_dry_run(
                 ledger, cfg, selection=selection, export=load_export(args.coverage),
-                profile=RequesterProfile.from_file(args.profile), template=load_template(),
+                profile=RequesterProfile.from_file(args.profile), template=load_active_template(),
                 output_dir=args.out, as_of=as_of)
             return {"command": "draft", "mode": cfg.mode, "status": "dry_run_packet_written",
                     "packet": str(folder / "packet.json"), "packet_sha256": packet["packet_sha256"],
@@ -178,7 +263,7 @@ def _run(args, cfg):
         if args.command == "prepare":
             from .aggregator_contract import load_export
             from .prepare import prepare_packet
-            from .templates import RequesterProfile, load_template
+            from .templates import RequesterProfile, load_active_template
             from datetime import date
             if args.directory_source:
                 found = directory.discover(directory.load_source(args.directory_source),
@@ -190,7 +275,7 @@ def _run(args, cfg):
                 "+00:00", "Z")
             manifest, folder = prepare_packet(
                 ledger, cfg, period=period, warnings=warnings, export=load_export(args.coverage),
-                profile=RequesterProfile.from_file(args.profile), template=load_template(), output_dir=args.out,
+                profile=RequesterProfile.from_file(args.profile), template=load_active_template(), output_dir=args.out,
                 as_of=as_of, today=today, agencies=args.agency, components=args.component)
             entries = manifest["entries"]
             return {"command": "prepare", "mode": cfg.mode, "status": "review_packet_written",
@@ -208,6 +293,100 @@ def _run(args, cfg):
         from .dryrun import record_review
         reviewed = record_review(ledger, args.packet, args.actor, args.note)
         return {"command": "review", "reviewed_requests": reviewed, "dispatch_authorized": False}
+
+
+
+def _now():
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _approve_template(args):
+    from .templates import approval_phrase, approve_template, load_active_template, template_dir
+    folder = args.template_dir or template_dir()
+    base = load_active_template(directory=folder)
+    if not args.confirm:
+        return {"command": "approve template", "status": "dry_run_nothing_written", "current": base.key,
+                "current_status": base.status, "template_dir": str(folder),
+                "confirmation_phrase": approval_phrase(base),
+                "next": "re-run with --reviewer-role, --reviewed-on and --confirm \"<phrase>\" after legal review"}
+    if not (args.reviewer_role and args.reviewed_on):
+        raise ValueError("--reviewer-role and --reviewed-on are required to approve")
+    approved = approve_template(directory=folder, reviewer_role=args.reviewer_role, reviewed_on=args.reviewed_on,
+                                scope=args.scope, confirm=args.confirm, source=args.source)
+    return {"command": "approve template", "status": "approved", "template": approved.key,
+            "sha256": approved.sha256, "template_dir": str(folder),
+            "next": "re-run `draft` and `review` so requests use the approved revision"}
+
+
+def _sending_command(args, ledger):
+    from . import authorization, receipts, sending
+    from .dispatch import RateLimits
+    from .templates import RequesterProfile, load_active_template
+    import hashlib
+    import os
+    from datetime import timedelta
+    if args.command == "operator":
+        roles = authorization.ROLES if args.role == "all" else (args.role,)
+        for role in roles:
+            authorization.grant_role(ledger, args.id, role, args.by)
+        return {"command": "operator", "operator": args.id, "granted": list(roles)}
+    if args.command == "approve":
+        profile = RequesterProfile.from_file(args.profile)
+        template = load_active_template()
+        if args.packet:
+            packet = json.loads(open(args.packet, encoding="utf-8").read())
+            ids = [e["request_id"] for e in packet["entries"] if e.get("decision") == "draft"]
+        else:
+            ids = list(args.request or [])
+        if not ids:
+            raise ValueError("give --packet or at least one --request")
+        if not 1 <= args.expires_in_days <= 30:
+            raise ValueError("--expires-in-days must be 1..30")
+        now = ledger.clock()
+        expires = (datetime.fromisoformat(now.replace("Z", "+00:00")) + timedelta(days=args.expires_in_days))
+        auth_id, digest = authorization.authorize_batch(
+            ledger, request_ids=ids, authorizer=args.operator, reference=args.reference,
+            expires_at=expires.isoformat().replace("+00:00", "Z"), profile=profile, template=template,
+            transport=args.transport, max_messages=args.max_messages or len(ids), now=now)
+        return {"command": "approve batch", "auth_id": auth_id, "envelope_sha256": digest, "requests": len(ids),
+                "transport": args.transport, "sent": 0,
+                "next": f"foia-requests queue --ledger {args.ledger} --operator {args.operator} --auth-id {auth_id}"}
+    if args.command == "queue":
+        plan = sending.batch_plan(ledger, args.auth_id)
+        if plan["transport"] not in sending.LIVE_TRANSPORTS:
+            raise ValueError(f"batch transport {plan['transport']} cannot be queued from the CLI")
+        queued = authorization.queue_authorized(ledger, args.auth_id, args.operator)
+        plan = sending.batch_plan(ledger, args.auth_id)
+        return {"command": "queue", "auth_id": args.auth_id, "newly_queued": len(queued), "pending": plan["pending"],
+                "sent": 0, "confirmation_phrase": plan["confirmation_phrase"]}
+    if args.command == "send":
+        profile = RequesterProfile.from_file(args.profile)
+        return sending.send_batch(
+            ledger, auth_id=args.auth_id, env=os.environ, profile=profile, template=load_active_template(),
+            confirm=args.confirm, owner=args.operator, profile_path=args.profile,
+            limits=RateLimits(args.per_host_per_hour, args.global_per_hour), max_messages=args.max,
+            manual_dir=args.manual_out, ledger_path=args.ledger, min_interval_seconds=args.min_interval_seconds)
+    if args.command == "stop":
+        authorization.set_stop(ledger, args.operator, args.reason)
+        return {"command": "stop", "dispatch_stopped": True}
+    if args.command == "resume":
+        authorization.clear_stop(ledger, args.operator, args.reason)
+        return {"command": "resume", "dispatch_stopped": authorization.stopped(ledger)}
+    # receipt
+    if args.receipt_kind == "manual":
+        from .manual_filing import record_manual_filing
+        return dict(record_manual_filing(ledger, args.attempt, args.operator, confirmation=args.confirmation,
+                                         evidence_path=args.evidence, failed=args.failed, reason=args.reason,
+                                         tracking_number=args.tracking_number), command="receipt manual")
+    if args.receipt_kind == "ack":
+        evidence = hashlib.sha256(open(args.evidence, "rb").read()).hexdigest()
+        result = receipts.record_acknowledgment(ledger, args.request, args.operator,
+                                                tracking_number=args.tracking_number, evidence_sha256=evidence,
+                                                source=args.source)
+        return {"command": "receipt ack", "status": result, "evidence_sha256": evidence}
+    outcome = receipts.reconcile_unknown(ledger, args.attempt, args.operator, args.outcome,
+                                         {"source": args.source, "reference": args.reference})
+    return {"command": "receipt reconcile", "status": outcome}
 
 
 if __name__ == "__main__":
