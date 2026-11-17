@@ -1,0 +1,21 @@
+FOIA request: records released in response to FOIA request DOJ-2026-000101
+
+To the FOIA Officer, Office of Information Policy (Department of Justice):
+
+Under the Freedom of Information Act, 5 U.S.C. 552, I request:
+
+- a copy of the records released in response to FOIA request DOJ-2026-000101 (closed June 15, 2026, subject as logged: SYNTHETIC: training materials on FOIA processing)
+
+According to the agency's published FOIA log, each request listed above was closed with records released in full or in part. I ask only for the records as they were already released, with the same redactions. I do not need the original requester's name, contact details or correspondence.
+
+Please provide the records electronically, in the form in which they were released. If they have already been posted publicly, for example in a FOIA reading room, a link to them is sufficient.
+
+Fee category: I am a representative of the news media under 5 U.S.C. 552(a)(4)(A)(ii)(II): I gather information of potential interest to a segment of the public, use my editorial skills to turn the raw materials into a distinct work, and distribute that work to an audience. I publish through Example Test Newsletter (https://news.example.invalid), which reaches [TEST FIXTURE] subscribers and public web readers. This request is made as part of that newsgathering and not for a commercial use, so fees, if any, should be limited to reasonable standard charges for document duplication.
+
+Fee waiver: under 5 U.S.C. 552(a)(4)(A)(iii), I request a waiver of all fees. Disclosure of the requested information is in the public interest because it is likely to contribute significantly to public understanding of the operations or activities of the government: these records show how the agency handles FOIA requests and what it has released to the public under the FOIA. Disclosure is not primarily in my commercial interest. I will make the information available to the public as follows: [TEST FIXTURE] publishing the records and analysis on the outlet's public website and sharing the data with the public FOIA Aggregator
+
+I am not agreeing to pay fees at this time. If fees are expected, please contact me with an estimate before incurring them.
+
+Synthetic Journalist (TEST FIXTURE - NOT A REAL PERSON)
+Example Test Newsletter
+journalist@example.invalid

@@ -431,7 +431,41 @@ def _v10(conn):
         conn.execute(statement)
 
 
-MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10}
+# Released-records follow-up drafts, deduplicated by (agency, tracking number). Drafts only: these rows are
+# not requests in the sending path and cannot be authorized, queued or sent.
+_V11_STATEMENTS = (
+    """CREATE TABLE release_followup_letters (
+        letter_id TEXT PRIMARY KEY,
+        agency_slug TEXT NOT NULL,
+        component TEXT,
+        template_key TEXT NOT NULL,
+        template_sha256 TEXT NOT NULL,
+        recipient_route TEXT,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL,
+        gaps_manifest_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL)""",
+    """CREATE TABLE release_followups (
+        agency_slug TEXT NOT NULL,
+        tracking_number TEXT NOT NULL,
+        request_key TEXT NOT NULL,
+        letter_id TEXT NOT NULL REFERENCES release_followup_letters(letter_id),
+        state TEXT NOT NULL CHECK (state IN ('drafted')),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (agency_slug, tracking_number))""",
+    "CREATE TRIGGER release_followups_no_delete BEFORE DELETE ON release_followups BEGIN SELECT RAISE(ABORT, 'follow-up records are append-only'); END",
+    "CREATE TRIGGER release_followup_letters_no_update BEFORE UPDATE ON release_followup_letters BEGIN SELECT RAISE(ABORT, 'follow-up letters are immutable'); END",
+    "CREATE TRIGGER release_followup_letters_no_delete BEFORE DELETE ON release_followup_letters BEGIN SELECT RAISE(ABORT, 'follow-up letters are immutable'); END",
+)
+
+
+def _v11(conn):
+    for statement in _V11_STATEMENTS:
+        conn.execute(statement)
+
+
+MIGRATIONS = {1: _v1, 2: _v2, 3: _v3, 4: _v4, 5: _v5, 6: _v6, 7: _v7, 8: _v8, 9: _v9, 10: _v10, 11: _v11}
 SCHEMA_VERSION = max(MIGRATIONS)
 # Tables each version must leave behind; used to reject partial/foreign schemas.
 EXPECTED_TABLES = {
@@ -446,6 +480,7 @@ EXPECTED_TABLES = {
     8: {"responses", "response_attachments", "response_coverage", "referrals", "followup_tasks"},
     9: {"continuation_cycles", "continuation_items", "continuation_schedules"},
     10: {"interchange_exports", "interchange_acks"},
+    11: {"release_followup_letters", "release_followups"},
 }
 
 

@@ -1,0 +1,16 @@
+{
+  "profile_id": "synthetic-journalist-1",
+  "requester_principal": "requester:synthetic-journalist-1",
+  "name": "Synthetic Journalist (TEST FIXTURE - NOT A REAL PERSON)",
+  "organization": "Example Test Newsletter",
+  "reply_email": "journalist@example.invalid",
+  "reply_postal": null,
+  "verified": false,
+  "synthetic": true,
+  "fee_policy": {"max_authorized_usd": 0, "fee_waiver_basis": null},
+  "delivery_format": "CSV or spreadsheet preferred; PDF acceptable",
+  "fee_category": "news_media",
+  "publication": {"name": "Example Test Newsletter", "url": "https://news.example.invalid",
+                  "audience": "[TEST FIXTURE] subscribers and public web readers"},
+  "dissemination": "[TEST FIXTURE] publishing the records and analysis on the outlet's public website and sharing the data with the public FOIA Aggregator"
+}

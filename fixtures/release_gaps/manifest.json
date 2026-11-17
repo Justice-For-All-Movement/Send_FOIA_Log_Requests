@@ -1,0 +1,12 @@
+{
+  "format": "foia-release-gaps/1",
+  "generated_at": "2026-11-16T00:00:00Z",
+  "producer": {
+    "commit": null
+  },
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-06-30"
+  },
+  "count": 5
+}

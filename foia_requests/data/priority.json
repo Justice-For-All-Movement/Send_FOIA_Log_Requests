@@ -1,0 +1,139 @@
+{
+  "format": "sfl-priority/1",
+  "note": "Owner civil-liberties priority list (2026-11-17). Keys are AGENCY or AGENCY/COMPONENT abbreviations, matched by slug against directory component IDs; verify abbreviations against the FOIA.gov snapshot. Unlisted agencies are tier 3. Tier 1 defaults to a monthly cadence, tiers 2-3 to quarterly.",
+  "entries": {
+    "CIA": {
+      "tier": 1,
+      "reason": "Foreign intelligence agency with domestic-surveillance history; publishes no FOIA log, so it is always requested",
+      "always_request": true
+    },
+    "NSA": {
+      "tier": 1,
+      "reason": "Signals intelligence and bulk-collection programs"
+    },
+    "DOD/NSA": {
+      "tier": 1,
+      "reason": "Signals intelligence and bulk-collection programs (listed as a DoD component on FOIA.gov)"
+    },
+    "ODNI": {
+      "tier": 1,
+      "reason": "Oversees the intelligence community and its surveillance authorities"
+    },
+    "DOJ/FBI": {
+      "tier": 1,
+      "reason": "Domestic intelligence, surveillance and investigations"
+    },
+    "FBI": {
+      "tier": 1,
+      "reason": "Domestic intelligence, surveillance and investigations"
+    },
+    "DOJ/DEA": {
+      "tier": 1,
+      "reason": "Drug enforcement surveillance and data programs"
+    },
+    "DOJ/ATF": {
+      "tier": 1,
+      "reason": "Firearms enforcement and investigative techniques"
+    },
+    "DOJ/BOP": {
+      "tier": 1,
+      "reason": "Federal prison conditions and treatment of prisoners"
+    },
+    "DOJ/USMS": {
+      "tier": 1,
+      "reason": "Fugitive operations, prisoner custody and surveillance technology"
+    },
+    "DOJ/CRT": {
+      "tier": 1,
+      "reason": "Civil Rights Division enforcement of civil-rights laws"
+    },
+    "DOJ/NSD": {
+      "tier": 1,
+      "reason": "National-security investigations and FISA applications"
+    },
+    "DHS": {
+      "tier": 1,
+      "reason": "Immigration enforcement, border searches and domestic intelligence"
+    },
+    "DHS/ICE": {
+      "tier": 1,
+      "reason": "Immigration detention, deportation and surveillance"
+    },
+    "DHS/CBP": {
+      "tier": 1,
+      "reason": "Border searches, device searches and surveillance"
+    },
+    "DHS/USCIS": {
+      "tier": 1,
+      "reason": "Immigration benefits, vetting and screening"
+    },
+    "DHS/IA": {
+      "tier": 1,
+      "reason": "DHS Office of Intelligence and Analysis domestic intelligence"
+    },
+    "DHS/TSA": {
+      "tier": 1,
+      "reason": "Traveler screening and watchlisting"
+    },
+    "DOD/DIA": {
+      "tier": 1,
+      "reason": "Defense intelligence collection"
+    },
+    "DOD/NGA": {
+      "tier": 1,
+      "reason": "Geospatial intelligence and imagery collection"
+    },
+    "DOD/NRO": {
+      "tier": 1,
+      "reason": "Satellite reconnaissance"
+    },
+    "DOD/ARMY-CID": {
+      "tier": 1,
+      "reason": "Army criminal investigations"
+    },
+    "DOD/INSCOM": {
+      "tier": 1,
+      "reason": "Army intelligence and security operations"
+    },
+    "DOS": {
+      "tier": 2,
+      "reason": "State Department visa, passport and diplomatic records affecting rights abroad"
+    },
+    "TREAS": {
+      "tier": 2,
+      "reason": "Treasury financial surveillance and sanctions"
+    },
+    "TREAS/IRS": {
+      "tier": 2,
+      "reason": "Tax enforcement and targeting of organizations"
+    },
+    "TREAS/FINCEN": {
+      "tier": 2,
+      "reason": "Financial surveillance and suspicious-activity reporting"
+    },
+    "USPS": {
+      "tier": 2,
+      "reason": "Postal surveillance programs"
+    },
+    "USPS/USPIS": {
+      "tier": 2,
+      "reason": "Postal Inspection Service investigations and mail covers"
+    },
+    "FCC": {
+      "tier": 2,
+      "reason": "Communications regulation, surveillance and press-related matters"
+    },
+    "ED/OCR": {
+      "tier": 2,
+      "reason": "Education Office for Civil Rights complaints and enforcement"
+    },
+    "HHS": {
+      "tier": 2,
+      "reason": "Health privacy, public-health powers and benefits"
+    },
+    "SSA": {
+      "tier": 2,
+      "reason": "Benefits records and data sharing with enforcement agencies"
+    }
+  }
+}

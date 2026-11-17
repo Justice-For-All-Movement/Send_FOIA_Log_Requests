@@ -104,6 +104,35 @@ class CliProcessTests(unittest.TestCase):
             self.assertIn("future", future.stderr)
             self.assertFalse((Path(directory) / "x").exists())
 
+    def test_plan_logs_and_followups_send_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = str(Path(directory) / "state" / "ledger.sqlite")
+            profile = "fixtures/profiles/synthetic-journalist.json"
+            plan = self.run_cli("--config", "fixtures/offline-config.json", "plan-logs", "--ledger", ledger,
+                                "--directory-source", "fixtures/directory", "--profile", profile,
+                                "--published-logs", "fixtures/published_logs.synthetic.json",
+                                "--today", "2026-11-17", "--as-of", "2026-11-17T00:00:00Z",
+                                "--out", str(Path(directory) / "plan"))
+            self.assertEqual(plan.returncode, 0, plan.stderr)
+            summary = json.loads(plan.stdout)
+            self.assertEqual((summary["drafts"], summary["outbound_messages_sent"]), (2, 0))
+            self.assertEqual(summary["decisions"]["fed:epa/region-x"], "excluded_publishes_logs")
+            self.assertIn("closed between", Path(summary["plan"]).read_text(encoding="utf-8"))
+            again = self.run_cli("plan-logs", "--ledger", ledger, "--profile", profile, "--today", "2026-11-17",
+                                 "--published-logs", "fixtures/published_logs.synthetic.json",
+                                 "--out", str(Path(directory) / "plan2"))
+            self.assertEqual(json.loads(again.stdout)["drafts"], 0)  # next periods have not ended
+            bad = self.run_cli("plan-logs", "--ledger", ledger, "--profile", profile, "--cadence", "hourly",
+                               "--out", str(Path(directory) / "x"))
+            self.assertEqual(bad.returncode, 2)
+            follow = self.run_cli("--config", "fixtures/offline-config.json", "plan-followups", "--ledger", ledger,
+                                  "--gaps", "fixtures/release_gaps", "--profile", profile, "--group",
+                                  "--as-of", "2026-11-17T00:00:00Z", "--out", str(Path(directory) / "fu"))
+            self.assertEqual(follow.returncode, 0, follow.stderr)
+            summary = json.loads(follow.stdout)
+            self.assertEqual((summary["letters"], summary["records_requested"], summary["outbound_messages_sent"]),
+                             (3, 4, 0))
+
     def test_invalid_config_fails_before_command_and_dispatch_denied(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.json"

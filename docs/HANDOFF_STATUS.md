@@ -2,6 +2,29 @@
 
 Documentation baseline: **2026-10-11**. Source/PR verification: **2026-10-11T20:39:09.617Z**. This is a dated evidence ledger, not a live dispatch-status feed.
 
+## Update — 2026-11-17: periodic closed-request logs and released-records follow-ups (drafts only)
+
+Branch `feature/periodic-closed-logs-and-followups`. **Nothing was sent.** No request, e-mail, portal submission or fee was made or incurred, and no sending gate was changed (`FOIA_SENDING_ENABLED`, approvals and transport are as before).
+
+Code-complete and tested (offline, fixtures only):
+
+- Template `periodic_closed_request_log@1` (record class `foia_closed_request_log`): requests closed between two dates; a spreadsheet/CSV export under 5 U.S.C. 552(a)(3)(B); only six fields (tracking number, date received, date closed, subject as logged, final disposition, pages released); requester contact details may be omitted; no new records; a news-media status paragraph and a public-interest fee waiver (552(a)(4)(A)(iii)). Golden text: `tests/golden/periodic_closed_request_log_v1_monthly.txt`.
+- Template `released_records_followup@1`: a copy of the records released for one or more closed requests, electronic delivery, a link suffices if already public, same waiver paragraph. Golden text: `tests/golden/released_records_followup_v1_single.txt`.
+- Both are pinned in `LOCK.json` with status `engineering_draft_pending_legal_review`. The annual template is unchanged.
+- Profiles may add `fee_category` (`news_media` | `educational` | `other`), `publication` (`name`, `url`, `audience`) and `dissemination`. These are optional, so existing profiles still load. The fee category text comes from the profile. News media is the expected primary category, since the owner is a working journalist. Political office and income are not federal FOIA fee categories or waiver grounds and are not used. Missing facts render as `[MISSING: ...]` and block live use.
+- `foia-requests plan-logs` (`cadence.py`): next un-requested ended period per component, never prospective (warning under 30 days), one request per component per period through the ledger, published-log skip, tier-ordered from `foia_requests/data/priority.json` (tier 1 monthly, tiers 2-3 quarterly; `--cadence` and an override file), optional `--max`, `--since`, `--no-record`. CIA is marked `always_request`.
+- `foia-requests plan-followups --gaps` (`release_gaps.py`): strict `foia-release-gaps/1` reader, dedupe by (agency, tracking number) via the new ledger tables `release_followups`/`release_followup_letters` (schema v11), `--agency`, `--max`, `--group` (25 per letter). Fixture: `fixtures/release_gaps/`.
+- CI runs both commands from the installed wheel and asserts zero sends.
+- Tests: **182** product tests (1 skipped, as before).
+
+Not done / still needed:
+
+- Legal review of both new templates, including the fee-category wording and the news-media paragraph.
+- Approval and sending wiring for the new templates. `approve template` (no `--template` option) and `approve batch` handle only `annual_foia_log_request`, so these drafts **cannot** be authorized or sent. That is deliberate until the templates are reviewed.
+- The owner's decisions in [OWNER_SENDING_CHECKLIST.md](OWNER_SENDING_CHECKLIST.md) section 8: who files (this sets the fee category), real outlet details in the private profile, and the first 20-30 agencies.
+- The priority list's agency/component abbreviations must be checked against the real FOIA.gov snapshot. A real published-logs list and a real `foia-release-gaps/1` export from the FOIA Aggregator do not exist yet; the Aggregator side of that export is not built.
+- No scheduler is enabled. Use a monthly or quarterly cadence, never hourly.
+
 ## Update — 2026-11-16: owner-gated sending path (SFL-08/09 completion)
 
 - Merged as #25 (head `5a525d9`, all check runs `success`). SFL-08 maps to #25; #25 contributes to SFL-02 (FOIA.gov import) and SFL-09 (SMTP/manual receipts).

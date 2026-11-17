@@ -35,6 +35,17 @@ MAX_BODY = 20000
 FORBIDDEN_CHARACTERS = {chr(c) for c in list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A))}
 PROFILE_FIELDS = {"profile_id", "requester_principal", "name", "organization", "reply_email", "reply_postal",
                   "verified", "synthetic", "fee_policy", "delivery_format"}
+# Optional profile fields used by the public-interest fee-waiver templates. The owner has not yet decided who
+# files (an organization or a person), so the fee category comes from the profile, never from the template.
+# Profile fields state facts only: a fee category is used only when the profile supplies the facts that support
+# it (news_media needs a ``publication``). Political office and income are not federal FOIA fee categories or
+# fee-waiver grounds and have no profile field.
+OPTIONAL_PROFILE_FIELDS = {"fee_category", "dissemination", "publication"}
+PUBLICATION_FIELDS = {"name", "url", "audience"}
+FEE_CATEGORIES = ("news_media", "educational", "other")
+MAX_DISSEMINATION = 1000
+# Optional template keys: ``item`` (one line of a list letter) and ``fee_categories`` (category -> text).
+OPTIONAL_TEMPLATE_KEYS = {"item", "fee_categories"}
 
 
 class TemplateError(ValueError):
@@ -60,6 +71,36 @@ def _clean_line(value, name, required=True):
     return value
 
 
+def _clean_text(value, name, limit):
+    """Optional free text of at most ``limit`` characters, on one line (no control/formatting characters)."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TemplateError(f"{name} must be text")
+    value = unicodedata.normalize("NFC", value).strip()
+    if len(value) > limit:
+        raise TemplateError(f"{name} exceeds {limit} characters")
+    if any(unicodedata.category(c) in ("Cc", "Cf") for c in value) or FORBIDDEN_CHARACTERS & set(value):
+        raise TemplateError(f"{name} contains control or formatting characters")
+    return value or None
+
+
+def _publication(value):
+    """Optional facts about the requester's outlet: ``{"name", "url", "audience"}`` (all required when given)."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != PUBLICATION_FIELDS:
+        raise TemplateError("publication must contain " + ", ".join(sorted(PUBLICATION_FIELDS)))
+    out = {"name": _clean_line(value["name"], "publication name"),
+           "url": _clean_line(value["url"], "publication url"),
+           "audience": _clean_text(value["audience"], "publication audience", 400)}
+    if not out["url"].startswith("https://") or " " in out["url"]:
+        raise TemplateError("publication url must be an https URL")
+    if not out["audience"]:
+        raise TemplateError("publication audience is required")
+    return out
+
+
 def human_date(value: str) -> str:
     day = date.fromisoformat(value)
     return f"{MONTHS[day.month - 1]} {day.day}, {day.year}"
@@ -79,6 +120,8 @@ class RequestTemplate:
     sha256: str
     approval: dict | None = None
     source_dir: str | None = field(default=None, compare=False)
+    item: str | None = None
+    fee_categories: dict | None = None
 
     @property
     def key(self):
@@ -108,8 +151,18 @@ def load_template(template_id="annual_foia_log_request", revision="1", directory
     data = json.loads(path.read_text(encoding="utf-8"))
     expected = {"template_id", "revision", "jurisdiction", "record_class", "status", "authority_note",
                 "requested_fields", "subject", "body"}
-    if set(data) not in (expected, expected | {"approval"}):
+    extra = set(data) - expected
+    if not expected <= set(data) or not extra <= OPTIONAL_TEMPLATE_KEYS | {"approval"}:
         raise TemplateError("template fields do not match the template contract")
+    if "item" in data and not isinstance(data["item"], str):
+        raise TemplateError("template item must be text")
+    if "fee_categories" in data:
+        cats = data["fee_categories"]
+        if not isinstance(cats, dict) or set(cats) != set(FEE_CATEGORIES) or \
+                not all(isinstance(v, str) and v.strip() for v in cats.values()):
+            raise TemplateError("fee_categories must give text for " + ", ".join(FEE_CATEGORIES))
+        for text in cats.values():
+            Template(text).substitute(_PLACEHOLDER_PROBE)
     if data["template_id"] != template_id or data["revision"] != revision:
         raise TemplateError("template file name does not match its id/revision")
     approval = data.get("approval")
@@ -122,11 +175,12 @@ def load_template(template_id="annual_foia_log_request", revision="1", directory
     lock = _read_lock(directory)
     if lock.get(f"{template_id}@{revision}") != digest:
         raise TemplateError("template content changed without a new revision (LOCK.json mismatch)")
-    for text in (data["subject"], data["body"]):
+    for text in (data["subject"], data["body"], data.get("item", "")):
         Template(text).substitute(_PLACEHOLDER_PROBE)  # unknown placeholders fail here
     return RequestTemplate(data["template_id"], data["revision"], data["jurisdiction"], data["record_class"],
                            data["status"], data["authority_note"], tuple(data["requested_fields"]),
-                           data["subject"], data["body"], digest, approval, str(Path(directory)))
+                           data["subject"], data["body"], digest, approval, str(Path(directory)),
+                           data.get("item"), data.get("fee_categories"))
 
 
 def locked_revisions(template_id="annual_foia_log_request", directory=TEMPLATE_DIR):
@@ -189,9 +243,10 @@ def approve_template(*, directory, reviewer_role, reviewed_on, scope, confirm, t
     data.pop("approval", None)
     if source is not None:
         edited = json.loads(Path(source).read_text(encoding="utf-8"))
-        unknown = set(edited) - {"subject", "body", "requested_fields", "authority_note"}
+        allowed = {"subject", "body", "requested_fields", "authority_note"} | (OPTIONAL_TEMPLATE_KEYS & set(data))
+        unknown = set(edited) - allowed
         if unknown:
-            raise TemplateError("source may only change subject, body, requested_fields, authority_note")
+            raise TemplateError("source may only change " + ", ".join(sorted(allowed)))
         data.update(edited)
     revision = str(int(base.revision) + 1)
     data.update(revision=revision, status="approved", approval={
@@ -199,7 +254,7 @@ def approve_template(*, directory, reviewer_role, reviewed_on, scope, confirm, t
         "approved_from": f"{base.key} {base.sha256}"})
     data["authority_note"] = (f"Approved {reviewed_on} by {reviewer_role} after legal review ({scope}). "
                               f"Derived from {base.key}.")
-    for text in (data["subject"], data["body"]):
+    for text in (data["subject"], data["body"], data.get("item", "")):
         Template(text).substitute(_PLACEHOLDER_PROBE)
     target = directory / f"{template_id}.v{revision}.json"
     if target.exists():
@@ -213,7 +268,11 @@ def approve_template(*, directory, reviewer_role, reviewed_on, scope, confirm, t
 
 _PLACEHOLDER_PROBE = {k: "" for k in (
     "component_name", "agency_name", "period_start_text", "period_end_text", "field_list",
-    "delivery_format", "fee_paragraph", "requester_name", "requester_block")}
+    "delivery_format", "fee_paragraph", "requester_name", "requester_block",
+    # public-interest fee waiver (periodic_closed_request_log, released_records_followup)
+    "fee_category_text", "dissemination", "outlet_name", "outlet_url", "outlet_audience",
+    # released_records_followup
+    "addressee", "request_list", "request_label", "tracking_number", "closed_date", "subject")}
 
 
 @dataclass(frozen=True)
@@ -228,11 +287,18 @@ class RequesterProfile:
     synthetic: bool
     fee_policy: dict | None
     delivery_format: str | None
+    fee_category: str | None = None
+    dissemination: str | None = None
+    publication: dict | None = None
 
     @classmethod
     def from_dict(cls, data):
-        if not isinstance(data, dict) or set(data) != PROFILE_FIELDS:
+        if not isinstance(data, dict) or not PROFILE_FIELDS <= set(data) or \
+                not set(data) - PROFILE_FIELDS <= OPTIONAL_PROFILE_FIELDS:
             raise TemplateError("requester profile fields do not match the profile contract")
+        category = data.get("fee_category")
+        if category is not None and category not in FEE_CATEGORIES:
+            raise TemplateError("fee_category must be one of " + ", ".join(FEE_CATEGORIES) + " or null")
         if type(data["verified"]) is not bool or type(data["synthetic"]) is not bool:
             raise TemplateError("verified/synthetic must be booleans")
         fee = data["fee_policy"]
@@ -251,7 +317,9 @@ class RequesterProfile:
             _clean_line(data["reply_email"], "reply_email", required=False) or None,
             _clean_line(data["reply_postal"], "reply_postal", required=False) or None,
             data["verified"], data["synthetic"], fee,
-            _clean_line(data["delivery_format"], "delivery_format", required=False) or None)
+            _clean_line(data["delivery_format"], "delivery_format", required=False) or None,
+            category, _clean_text(data.get("dissemination"), "dissemination", MAX_DISSEMINATION),
+            _publication(data.get("publication")))
 
     @classmethod
     def from_file(cls, path):
@@ -275,7 +343,7 @@ class Rendered:
     manifest: dict = field(compare=False)
 
 
-def _fee_paragraph(fee_policy):
+def _fee_paragraph(fee_policy, include_waiver=True):
     if fee_policy is None:
         return None
     amount = fee_policy["max_authorized_usd"]
@@ -285,9 +353,31 @@ def _fee_paragraph(fee_policy):
     else:
         text = (f"I agree to pay fees up to ${amount}. If fees will exceed that amount, please contact me "
                 "before incurring them.")
-    if fee_policy.get("fee_waiver_basis"):
+    if include_waiver and fee_policy.get("fee_waiver_basis"):
         text += f" I request a fee waiver on the following basis: {fee_policy['fee_waiver_basis']}"
     return text
+
+
+def public_interest_values(template: RequestTemplate, profile: RequesterProfile, need, identifiers):
+    """Fee category and dissemination text for templates that request a public-interest fee waiver."""
+    values = {}
+    if "fee_category_text" in identifiers:
+        if not template.fee_categories:
+            raise TemplateError("template uses ${fee_category_text} but defines no fee_categories")
+        text = template.fee_categories.get(profile.fee_category) if profile.fee_category else None
+        if text is not None:
+            facts = profile.publication or {}
+            outlet = {"outlet_name": facts.get("name"), "outlet_url": facts.get("url"),
+                      "outlet_audience": facts.get("audience")}
+            used = set(Template(text).get_identifiers())
+            if used & set(outlet) and not profile.publication:
+                need(None, f"publication facts (name, url, audience) supporting fee category {profile.fee_category}")
+            text = Template(text).substitute({k: v or f"[MISSING: publication {k[7:]}]" for k, v in outlet.items()})
+        values["fee_category_text"] = need(text, "fee category (owner decides who files: news_media, educational "
+                                                 "or other)")
+    if "dissemination" in identifiers:
+        values["dissemination"] = need(profile.dissemination, "dissemination plan for the fee waiver")
+    return values
 
 
 def render(template: RequestTemplate, scope: RequestScope, component: dict, route: dict | None,
@@ -316,7 +406,9 @@ def render(template: RequestTemplate, scope: RequestScope, component: dict, rout
         missing.append("real requester profile (fixture profile is synthetic)")
     elif not profile.verified:
         missing.append("verified requester identity")
-    fee = _fee_paragraph(profile.fee_policy)
+    identifiers = set(Template(template.subject).get_identifiers()) | set(Template(template.body).get_identifiers())
+    # Templates with their own fee-waiver paragraph do not repeat the profile's free-text waiver basis.
+    fee = _fee_paragraph(profile.fee_policy, include_waiver="dissemination" not in identifiers)
     route_id = None
     if route is None:
         missing.append("official submission route")
@@ -337,6 +429,7 @@ def render(template: RequestTemplate, scope: RequestScope, component: dict, rout
         "requester_name": need(profile.name, "requester name"),
         "requester_block": "\n".join(reply) if reply else "[MISSING: requester reply route]",
     }
+    values.update(public_interest_values(template, profile, need, identifiers))
     subject = Template(template.subject).substitute(values)
     body = Template(template.body).substitute(values)
     if len(subject) > MAX_SUBJECT or len(body) > MAX_BODY:

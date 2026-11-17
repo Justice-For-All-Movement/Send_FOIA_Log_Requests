@@ -28,7 +28,9 @@ from . import migrations
 
 DEDUPE_KEY_VERSION = "dk1"
 REQUEST_ID_NAMESPACE = uuid.UUID("5f0c8e2a-6c1b-5d7e-9a3f-1b2c3d4e5f60")
-RECORD_CLASSES = frozenset({"foia_request_log"})
+# foia_request_log: requests *received* in a period (annual template); foia_closed_request_log: requests
+# *closed* in a period (periodic template). Distinct classes give distinct dedupe keys.
+RECORD_CLASSES = frozenset({"foia_request_log", "foia_closed_request_log"})
 PERIOD_BASES = frozenset({"calendar", "fiscal", "custom"})
 
 STATES = frozenset({
