@@ -4,7 +4,7 @@ Documentation baseline: **2026-10-11**. Source/PR verification: **2026-10-11T20:
 
 ## Update — 2026-11-17: periodic closed-request logs and released-records follow-ups (drafts only)
 
-Branch `feature/periodic-closed-logs-and-followups`. **Nothing was sent.** No request, e-mail, portal submission or fee was made or incurred, and no sending gate was changed (`FOIA_SENDING_ENABLED`, approvals and transport are as before).
+Branch `feature/periodic-closed-logs-and-followups`, PR #27 (open, not merged; contributing to SFL-03, SFL-04, SFL-10 and SFL-11 in `registry/prs.json`). **Nothing was sent.** No request, e-mail, portal submission or fee was made or incurred, and no sending gate was changed (`FOIA_SENDING_ENABLED`, approvals and transport are as before).
 
 Code-complete and tested (offline, fixtures only):
 

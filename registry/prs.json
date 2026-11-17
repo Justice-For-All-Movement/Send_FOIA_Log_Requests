@@ -4,7 +4,7 @@
   "roadmapVersion": 2,
   "planVerified": true,
   "plannedPrCount": 14,
-  "observedAt": "2026-11-16T21:15:00Z",
+  "observedAt": "2026-11-17T18:21:00Z",
   "planProvenance": {
     "baselineDate": "2026-10-11",
     "authority": "Current owner instruction to complete plans and registry integration; Engine-Room issue 71 recovered scope; repository evidence distinguished in plan",
@@ -89,7 +89,8 @@
       "planSection": "SFL-03",
       "contributingPrs": [
         16,
-        22
+        22,
+        27
       ]
     },
     {
@@ -109,7 +110,10 @@
       "externalPrerequisites": [],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-04"
+      "planSection": "SFL-04",
+      "contributingPrs": [
+        27
+      ]
     },
     {
       "id": "SFL-05",
@@ -243,7 +247,10 @@
       "externalPrerequisites": [],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-10"
+      "planSection": "SFL-10",
+      "contributingPrs": [
+        27
+      ]
     },
     {
       "id": "SFL-11",
@@ -264,7 +271,10 @@
       "externalPrerequisites": [],
       "priorEvidencePrs": [],
       "planPath": "docs/DEVELOPMENT_PLAN.md",
-      "planSection": "SFL-11"
+      "planSection": "SFL-11",
+      "contributingPrs": [
+        27
+      ]
     },
     {
       "id": "SFL-12",
@@ -357,6 +367,21 @@
     }
   ],
   "pullRequests": [
+    {
+      "id": 5362547700,
+      "number": 27,
+      "title": "Periodic closed-request log planner and released-records follow-ups (drafts only)",
+      "url": "https://github.com/Justice-For-All-Movement/Send_FOIA_Log_Requests/pull/27",
+      "state": "open",
+      "draft": false,
+      "createdAt": "2026-11-17T18:20:27Z",
+      "updatedAt": "2026-11-17T18:20:27Z",
+      "closedAt": null,
+      "mergedAt": null,
+      "headSha": "b259b8c9be875347cf04759e7a27480c14a45144",
+      "baseRef": "main",
+      "mergeCommitSha": null
+    },
     {
       "id": 5343901280,
       "number": 25,
