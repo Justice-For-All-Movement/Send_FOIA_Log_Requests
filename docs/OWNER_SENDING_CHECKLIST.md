@@ -37,6 +37,9 @@ Edit `~/foia/requester.json`. It is printed in each request's signature block. N
 | `synthetic` | `false` |
 | `fee_policy` | `{"max_authorized_usd": 0, "fee_waiver_basis": null}` unless you choose otherwise (section 5) |
 | `delivery_format` | e.g. `CSV or spreadsheet preferred; PDF acceptable` |
+| `fee_category` | Optional, for the closed-log and follow-up templates: `news_media`, `educational` or `other`. Use only a category the facts support (section 8). |
+| `publication` | Required with `news_media`: `{"name": ..., "url": "https://...", "audience": ...}`, the **real** outlet you publish through, its URL and who it reaches. These facts are printed in every such request. |
+| `dissemination` | How you will make the released information public, e.g. articles on your outlet plus sharing data with the FOIA Aggregator. It is printed in the fee-waiver paragraph. |
 
 ## 2. Legal review of the template (owner approves)
 
@@ -133,3 +136,13 @@ foia-requests status --ledger $L
 **Emergency stop**, at any time (takes effect before the next message): `foia-requests stop --ledger ~/foia/ledger.sqlite --operator owner --reason "..."`. Undo with `foia-requests resume` (same arguments). Unsetting `FOIA_SENDING_ENABLED` also halts a running batch before its next message.
 
 Back up the ledger before and after each batch (`operations.verified_backup`), and keep `~/foia` private.
+
+## 8. Decisions for periodic log requests and follow-ups (owner decides)
+
+`plan-logs` and `plan-followups` only write drafts. Their templates (`periodic_closed_request_log@1`, `released_records_followup@1`) are pending legal review and cannot pass `approve batch` yet. Before any of them can go out, decide:
+
+a. **Who files: an organization or a person.** This sets the fee category in the profile (`fee_category`). As a working journalist you would normally file as `news_media`. Put the real outlet's name, URL and audience in `publication` in your private `~/foia/requester.json`, never in the repository. The request states that you gather information of potential interest to a segment of the public, use editorial skills to turn it into a distinct work, and distribute it to an audience (5 U.S.C. 552(a)(4)(A)(ii)(II)). Claim only what those facts support. Holding political office and having a low income are **not** federal FOIA fee categories or fee-waiver grounds, so do not put them in the profile. Every request also asks for a public-interest fee waiver; fill in `dissemination` truthfully.
+
+b. **Which 20-30 agencies go first.** The default order is `foia_requests/data/priority.json` (tier 1: intelligence, DHS and DOJ enforcement components, DoD intelligence; tier 2: State, Treasury/IRS/FinCEN, USPS Inspection Service, FCC, Education OCR, HHS, SSA). Pick the first 20-30 and run with `--agency`/`--component` or `--max`. Check the abbreviations against the FOIA.gov snapshot. Tier 1 is planned monthly and everything else quarterly; change that with `--cadence` or an override file.
+
+Run these commands monthly or quarterly, never hourly (README, "Cadence"). Nothing is scheduled automatically.

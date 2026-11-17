@@ -1,0 +1,14 @@
+[
+  {
+    "agency_abbr": "EPA",
+    "component_abbr": null,
+    "index_url": "https://logs.agency.gov.example/epa/index",
+    "cadence": "monthly"
+  },
+  {
+    "agency_abbr": "DOJ",
+    "component_abbr": "FOIA-UNIT",
+    "index_url": "https://logs.agency.gov.example/doj/foia-unit",
+    "cadence": "quarterly"
+  }
+]

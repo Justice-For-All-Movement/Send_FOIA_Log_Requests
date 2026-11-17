@@ -1,7 +1,7 @@
 """foia-requests command line.
 
-Preparation (never sends): ``directory``, ``draft``, ``prepare``, ``review``,
-``status``.
+Preparation (never sends): ``directory``, ``draft``, ``prepare``, ``plan-logs`` (periodic closed-request log
+drafts), ``plan-followups`` (released-records follow-up drafts), ``review``, ``status``.
 Owner-gated sending path: ``operator`` (grant roles), ``approve template``,
 ``approve batch``, ``queue``, ``send`` (dry run unless every gate in
 ``sending.py`` holds and the typed confirmation matches), ``stop``/``resume``
@@ -15,9 +15,9 @@ from datetime import datetime, timezone
 
 from .config import Config, ConfigurationError
 
-COMMANDS = ("directory", "campaign", "draft", "prepare", "review", "operator", "approve", "queue", "send", "stop",
+COMMANDS = ("directory", "campaign", "draft", "prepare", "plan-logs", "plan-followups", "review", "operator", "approve", "queue", "send", "stop",
             "resume", "dispatch", "receipt", "response", "continue", "export", "status")
-IMPLEMENTED = ("directory", "draft", "prepare", "review", "status", "operator", "approve", "queue", "send", "stop",
+IMPLEMENTED = ("directory", "draft", "prepare", "plan-logs", "plan-followups", "review", "status", "operator", "approve", "queue", "send", "stop",
                "resume", "receipt")
 EXIT_BLOCKED = 3
 
@@ -96,6 +96,38 @@ def build_parser():
             command.add_argument("--out", required=True, help="Private output folder for review-packet.md")
             command.add_argument("--as-of", help="UTC timestamp recorded in the packet (default: now)")
             _add_period_args(command)
+        elif name == "plan-logs":
+            command.add_argument("--ledger", required=True, help="Private ledger database path")
+            command.add_argument("--directory-source", help="Discover and persist this fixture directory first")
+            command.add_argument("--profile", required=True, help="Requester profile JSON")
+            command.add_argument("--cadence", choices=("monthly", "quarterly"),
+                                 help="Cadence for this run (default: tier 1 monthly, tiers 2-3 quarterly)")
+            command.add_argument("--cadence-overrides", help="JSON list of {agency_abbr, component_abbr|null, cadence}")
+            command.add_argument("--published-logs",
+                                 help="JSON list of {agency_abbr, component_abbr|null, index_url, cadence}; skipped")
+            command.add_argument("--priority", help="Priority list (default: packaged data/priority.json)")
+            command.add_argument("--agency", action="append", help="Agency abbreviation filter (repeatable)")
+            command.add_argument("--component", action="append", help="Component ID filter (repeatable)")
+            command.add_argument("--since", help="First period start for components with no prior request, "
+                                                 "YYYY-MM-DD (default: only the latest ended period)")
+            command.add_argument("--max", type=int, help="Draft at most N requests in this run (default: no cap)")
+            command.add_argument("--no-record", action="store_true",
+                                 help="Do not store drafts in the ledger (a later run plans the same periods)")
+            command.add_argument("--today", help="Reference date YYYY-MM-DD (default: today, UTC)")
+            command.add_argument("--out", required=True, help="Private output folder for plan.md/plan.json")
+            command.add_argument("--as-of", help="UTC timestamp recorded in the plan (default: now)")
+        elif name == "plan-followups":
+            command.add_argument("--ledger", required=True, help="Private ledger database path")
+            command.add_argument("--directory-source", help="Discover and persist this fixture directory first")
+            command.add_argument("--gaps", required=True, help="foia-release-gaps/1 export folder")
+            command.add_argument("--profile", required=True, help="Requester profile JSON")
+            command.add_argument("--agency", action="append", help="agency_slug filter (repeatable)")
+            command.add_argument("--max", type=int, help="Draft at most N letters in this run")
+            command.add_argument("--group", action="store_true",
+                                 help="One letter per agency component (at most 25 tracking numbers per letter)")
+            command.add_argument("--no-record", action="store_true", help="Do not record drafts in the ledger")
+            command.add_argument("--out", required=True, help="Private output folder for followups.md/json")
+            command.add_argument("--as-of", help="UTC timestamp recorded in the output (default: now)")
         elif name == "status":
             command.add_argument("--ledger", required=True)
             command.add_argument("--backup-manifest", help="Manifest written by a verified backup")
@@ -285,6 +317,8 @@ def _run(args, cfg):
                     "period_warnings": warnings, "drafts": sum(e["included"] for e in entries),
                     "excluded": sum(not e["included"] for e in entries),
                     "outbound_messages_sent": 0, "live_dispatch_authorized": False}
+        if args.command in ("plan-logs", "plan-followups"):
+            return _plan_command(args, cfg, ledger)
         if args.command == "status":
             from .operations import health_report
             manifest = json.loads(open(args.backup_manifest, encoding="utf-8").read()) if args.backup_manifest else None
@@ -294,6 +328,46 @@ def _run(args, cfg):
         reviewed = record_review(ledger, args.packet, args.actor, args.note)
         return {"command": "review", "reviewed_requests": reviewed, "dispatch_authorized": False}
 
+
+
+def _plan_command(args, cfg, ledger):
+    from . import directory
+    from .templates import RequesterProfile, load_active_template
+    from datetime import date
+    if args.directory_source:
+        found = directory.discover(directory.load_source(args.directory_source),
+                                   directory.fixture_fetcher(args.directory_source))
+        directory.persist(ledger, found)
+    as_of = args.as_of or _now()
+    profile = RequesterProfile.from_file(args.profile)
+    if args.command == "plan-logs":
+        from . import cadence
+        today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
+        plan, folder = cadence.plan_logs(
+            ledger, cfg, today=today, profile=profile,
+            template=load_active_template(cadence.TEMPLATE_ID), output_dir=args.out, as_of=as_of,
+            cadence=args.cadence,
+            overrides=cadence.load_cadence_overrides(args.cadence_overrides) if args.cadence_overrides else (),
+            published=cadence.load_published_logs(args.published_logs) if args.published_logs else (),
+            priority=cadence.load_priority(args.priority) if args.priority else None,
+            agencies=args.agency, components=args.component, max_drafts=args.max,
+            since=date.fromisoformat(args.since) if args.since else None, record=not args.no_record)
+        return {"command": "plan-logs", "mode": cfg.mode, "status": "plan_written",
+                "plan": str(folder / cadence.PLAN_MD), "plan_json": str(folder / cadence.PLAN_JSON),
+                "plan_sha256": plan["plan_sha256"], "drafts": plan["drafts"],
+                "ledger_drafts_recorded": plan["ledger_drafts_recorded"],
+                "decisions": {e["component_id"]: e["decision"] for e in plan["entries"]},
+                "outbound_messages_sent": 0, "live_dispatch_authorized": False}
+    from . import release_gaps
+    plan, folder = release_gaps.plan_followups(
+        ledger, cfg, export=release_gaps.load_gaps(args.gaps), profile=profile,
+        template=load_active_template(release_gaps.TEMPLATE_ID), output_dir=args.out, as_of=as_of,
+        agencies=args.agency, max_letters=args.max, group=args.group, record=not args.no_record)
+    return {"command": "plan-followups", "mode": cfg.mode, "status": "drafts_written",
+            "drafts": str(folder / release_gaps.OUT_MD), "drafts_json": str(folder / release_gaps.OUT_JSON),
+            "plan_sha256": plan["plan_sha256"], "letters": len(plan["letters"]),
+            "records_requested": plan["records_requested"], "skipped": len(plan["skipped"]),
+            "outbound_messages_sent": 0, "live_dispatch_authorized": False}
 
 
 def _now():

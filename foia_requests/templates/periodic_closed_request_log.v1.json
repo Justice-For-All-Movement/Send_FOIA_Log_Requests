@@ -1,0 +1,23 @@
+{
+  "template_id": "periodic_closed_request_log",
+  "revision": "1",
+  "jurisdiction": "us-federal",
+  "record_class": "foia_closed_request_log",
+  "status": "engineering_draft_pending_legal_review",
+  "authority_note": "Cites 5 U.S.C. 552(a)(3)(B), 552(a)(4)(A)(ii), (iii) and (iv). Engineering draft written 2026-11-17; the citations and wording were not verified against official sources in that session and have had no legal review. The fee category text is chosen by the requester profile's fee_category because the owner has not decided who files; news_media is the expected primary category and its text uses the outlet facts from the profile's publication field. Political office and income are not federal FOIA fee categories or waiver grounds and are not used. Verify before any live use.",
+  "requested_fields": [
+    "request tracking number",
+    "date received",
+    "date closed",
+    "subject or description of the request as logged",
+    "final disposition",
+    "number of pages released"
+  ],
+  "subject": "FOIA request: ${component_name} log of FOIA requests closed ${period_start_text} to ${period_end_text}",
+  "body": "To the FOIA Officer, ${component_name} (${agency_name}):\n\nUnder the Freedom of Information Act, 5 U.S.C. 552, I request records, from the FOIA request log or tracking system that ${component_name} already maintains, covering FOIA requests closed between ${period_start_text} and ${period_end_text}.\n\nPlease include only these fields for each request closed in that period: ${field_list}. No other fields are requested.\n\nRequester names, addresses and other contact details are not needed and may be omitted.\n\nThis request does not ask the agency to create records, compile statistics or write a report. It asks only for an export of existing log data.\n\nUnder 5 U.S.C. 552(a)(3)(B), please provide the records in the form or format requested, a spreadsheet or CSV export, because log data is readily reproducible in that format (${delivery_format}).\n\nFee category: ${fee_category_text}\n\nFee waiver: under 5 U.S.C. 552(a)(4)(A)(iii), I request a waiver of all fees. Disclosure of the requested information is in the public interest because it is likely to contribute significantly to public understanding of the operations or activities of the government: these records show how the agency handles FOIA requests and what it has released to the public under the FOIA. Disclosure is not primarily in my commercial interest. I will make the information available to the public as follows: ${dissemination}\n\n${fee_paragraph}\n\n${requester_name}\n${requester_block}\n",
+  "fee_categories": {
+    "news_media": "I am a representative of the news media under 5 U.S.C. 552(a)(4)(A)(ii)(II): I gather information of potential interest to a segment of the public, use my editorial skills to turn the raw materials into a distinct work, and distribute that work to an audience. I publish through ${outlet_name} (${outlet_url}), which reaches ${outlet_audience}. This request is made as part of that newsgathering and not for a commercial use, so fees, if any, should be limited to reasonable standard charges for document duplication.",
+    "educational": "I ask to be placed in the educational institution fee category under 5 U.S.C. 552(a)(4)(A)(ii)(II). This request is made for scholarly research, not for a commercial use, so fees, if any, should be limited to reasonable standard charges for document duplication.",
+    "other": "This request is not for a commercial use. I am an \"all other\" requester under 5 U.S.C. 552(a)(4)(A)(ii)(III), so fees, if any, should be limited to reasonable standard charges for search and duplication, without charge for the first two hours of search time or the first 100 pages of duplication (5 U.S.C. 552(a)(4)(A)(iv)(II))."
+  }
+}
